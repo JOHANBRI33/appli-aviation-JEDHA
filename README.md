@@ -1,4 +1,4 @@
-# Appli aviation
+    # Appli aviation
 
 Application web mobile (PWA) pour passionnés d'aviation.
 Photographiez un avion, identifiez-le et constituez votre hangar virtuel.
@@ -40,6 +40,28 @@ Ouvrez [http://localhost:3000](http://localhost:3000) dans votre navigateur.
 npm run build   # Vérifie que le projet compile (à faire avant chaque pull request)
 npm run lint    # Vérifie le style du code
 ```
+
+## Tester depuis un téléphone (même Wi-Fi)
+
+Pour essayer la reconnaissance photo directement depuis l'appareil photo de ton téléphone :
+
+```bash
+# Lance le serveur en l'exposant sur le réseau local
+npm run dev -- -H 0.0.0.0
+```
+
+Puis cherche l'adresse IP locale de ton ordinateur :
+
+- **macOS / Linux** : `ip route get 1 | awk '{print $7}'` ou regarder dans les Réglages Wi-Fi
+- **Windows** : `ipconfig` → chercher « Adresse IPv4 » (ex. `192.168.1.42`)
+
+Ouvre ensuite sur ton téléphone (connecté au même Wi-Fi) :
+
+```
+http://192.168.1.42:3000/labo
+```
+
+> La page `/labo` n'est accessible qu'en développement (`NODE_ENV !== 'production'`).
 
 ## Stack
 
