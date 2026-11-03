@@ -34,6 +34,10 @@ yarn-error.log*
 .env*.local
 .env.local
 
+# test de vision — les photos de test ne vont pas dans le dépôt
+scripts/test-vision/photos/*
+!scripts/test-vision/photos/.gitkeep
+
 # vercel
 .vercel
 

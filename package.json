@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:vision": "node --env-file=.env.local scripts/test-vision/run.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -17,9 +18,11 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@google/genai": "^2.32.0",
     "@tailwindcss/turbopack": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4"
   }
 }
