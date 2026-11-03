@@ -1,0 +1,92 @@
+[
+  {
+    "id": "a320",
+    "name": "Airbus A320",
+    "manufacturer": "Airbus",
+    "description": "Monocouloir court/moyen-courrier, moteurs sous les ailes, nez arrondi caractéristique"
+  },
+  {
+    "id": "a321",
+    "name": "Airbus A321",
+    "manufacturer": "Airbus",
+    "description": "Version allongée de l'A320, fuselage plus long, même configuration moteurs"
+  },
+  {
+    "id": "b737",
+    "name": "Boeing 737",
+    "manufacturer": "Boeing",
+    "description": "Monocouloir court/moyen-courrier, moteurs aplatis sous les ailes (nacelles ovales)"
+  },
+  {
+    "id": "a380",
+    "name": "Airbus A380",
+    "manufacturer": "Airbus",
+    "description": "Très gros porteur double-pont, 4 moteurs, fuselage très large, double pont visible"
+  },
+  {
+    "id": "b747",
+    "name": "Boeing 747",
+    "manufacturer": "Boeing",
+    "description": "Gros porteur, 4 moteurs, bosse caractéristique sur l'avant (double pont partiel)"
+  },
+  {
+    "id": "concorde",
+    "name": "Concorde",
+    "manufacturer": "Aérospatiale / BAC",
+    "description": "Supersonique civil, ailes delta ogives, nez en visite articulé, 4 moteurs Olympus sous les ailes"
+  },
+  {
+    "id": "rafale",
+    "name": "Dassault Rafale",
+    "manufacturer": "Dassault Aviation",
+    "description": "Chasseur français bimoteur, delta avec canards, entrée d'air sous le nez, dérive unique"
+  },
+  {
+    "id": "mirage-2000",
+    "name": "Dassault Mirage 2000",
+    "manufacturer": "Dassault Aviation",
+    "description": "Chasseur français monomoteur, aile delta pure sans canards, dérive unique, nez plus fin"
+  },
+  {
+    "id": "f16",
+    "name": "General Dynamics F-16 Fighting Falcon",
+    "manufacturer": "General Dynamics / Lockheed Martin",
+    "description": "Chasseur monomoteur américain, entrée d'air ventrale, aile delta/trapézoïdale, dérive unique haute"
+  },
+  {
+    "id": "fa18",
+    "name": "McDonnell Douglas F/A-18 Hornet",
+    "manufacturer": "McDonnell Douglas / Boeing",
+    "description": "Chasseur bimoteur américain, double dérive, entrées d'air latérales, aile trapézoïdale"
+  },
+  {
+    "id": "spitfire",
+    "name": "Supermarine Spitfire",
+    "manufacturer": "Supermarine",
+    "description": "Chasseur WWII britannique, aile elliptique très distinctive, moteur Merlin en étoile, hélice"
+  },
+  {
+    "id": "hurricane",
+    "name": "Hawker Hurricane",
+    "manufacturer": "Hawker Aircraft",
+    "description": "Chasseur WWII britannique, aile droite arrondie (moins elliptique que le Spitfire), fuselage plus trapu"
+  },
+  {
+    "id": "dc3",
+    "name": "Douglas DC-3",
+    "manufacturer": "Douglas Aircraft Company",
+    "description": "Transport classique années 1930-40, deux moteurs en étoile, aile basse, train fixe ou rétractable"
+  },
+  {
+    "id": "p51",
+    "name": "North American P-51 Mustang",
+    "manufacturer": "North American Aviation",
+    "description": "Chasseur WWII américain, aile trapézoïdale, entrée d'air ventrale caractéristique (radiateur), hélice"
+  },
+  {
+    "id": "a350",
+    "name": "Airbus A350",
+    "manufacturer": "Airbus",
+    "description": "Gros porteur long-courrier, 2 moteurs, fuselage composite sombre, bouts d'ailes courbés vers le haut"
+  }
+]
