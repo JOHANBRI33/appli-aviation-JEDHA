@@ -7,18 +7,19 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:vision": "node --env-file=.env.local scripts/test-vision/run.js"
+    "test:vision": "node --conditions=react-server --env-file=.env.local scripts/test-vision/run.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
+    "@google/genai": "^2.32.0",
     "browser-image-compression": "^2.0.2",
     "next": "16.4.3",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
-    "@google/genai": "^2.32.0",
     "@tailwindcss/turbopack": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",

@@ -7,41 +7,43 @@
  *
  * Dépose tes photos dans scripts/test-vision/photos/
  * en les nommant d'après le modèle attendu, ex. a380-01.jpg, rafale-02.jpg.
+ *
+ * La logique Gemini (prompt, schéma JSON, constantes MODEL / THINKING_LEVEL)
+ * est dans lib/identification.js, partagée avec la route API de l'appli.
  */
 
-import { GoogleGenAI, Type } from '@google/genai';
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// ─── CONSTANTES FACILES À MODIFIER ────────────────────────────────────────────
-const MODEL = 'gemini-3.8-flash';           // changer de modèle ici
-const THINKING_LEVEL = 'low';               // 'low' | 'medium' | 'high'
-// ──────────────────────────────────────────────────────────────────────────────
+// Importe la logique partagée depuis lib/identification.js
+import {
+  MODEL,
+  THINKING_LEVEL,
+  loadCatalogue,
+  identifyAircraft,
+} from '../../lib/identification.js';
 
-const PAUSE_MS = 5000;          // pause entre les photos (palier gratuit)
-const RETRY_WAIT_MS = 30_000;   // attente avant ré-essai sur erreur de quota
-const MAX_SIDE_PX = 1024;       // résolution max envoyée à l'API
+const PAUSE_MS = 5000;        // pause entre les photos (palier gratuit)
+const RETRY_WAIT_MS = 30_000; // attente avant ré-essai sur erreur de quota
+const MAX_SIDE_PX = 1024;     // résolution max envoyée à l'API
+const MIME_TYPE = 'image/jpeg'; // toujours jpeg après redimensionnement sharp
 
 // Chemin du dossier courant (ES modules)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PHOTOS_DIR = path.join(__dirname, 'photos');
-const CATALOGUE_PATH = path.join(__dirname, 'catalogue.json');
 
-// ─── INITIALISATION ───────────────────────────────────────────────────────────
+// ─── VÉRIFICATION DE LA CLÉ ──────────────────────────────────────────────────
 
-// La clé est injectée via --env-file=.env.local, jamais dans le code
-const apiKey = process.env.VISION_API_KEY;
-if (!apiKey) {
+if (!process.env.VISION_API_KEY) {
   console.error('Erreur : VISION_API_KEY absent. Lance le script avec --env-file=.env.local.');
   process.exit(1);
 }
 
-const ai = new GoogleGenAI({ apiKey });
+// ─── CHARGEMENT DU CATALOGUE ──────────────────────────────────────────────────
 
-// Charge le catalogue
-const catalogue = JSON.parse(fs.readFileSync(CATALOGUE_PATH, 'utf8'));
+const catalogue = loadCatalogue();
 const catalogueIds = new Set(catalogue.map(a => a.id));
 
 // ─── LECTURE DES PHOTOS ───────────────────────────────────────────────────────
@@ -68,7 +70,9 @@ function expectedIdFromFilename(filename) {
 const unknownPhotos = photoFiles.filter(f => !catalogueIds.has(expectedIdFromFilename(f)));
 if (unknownPhotos.length > 0) {
   console.error('Erreur : ces photos ne correspondent à aucun id du catalogue :');
-  unknownPhotos.forEach(f => console.error(`  ${f}  → id déduit : "${expectedIdFromFilename(f)}"`));
+  unknownPhotos.forEach(f =>
+    console.error(`  ${f}  → id déduit : "${expectedIdFromFilename(f)}"`)
+  );
   console.error('\nIds disponibles dans le catalogue :');
   console.error(' ', [...catalogueIds].join(', '));
   process.exit(1);
@@ -76,58 +80,6 @@ if (unknownPhotos.length > 0) {
 
 console.log(`Modèle : ${MODEL}  |  Niveau de réflexion : ${THINKING_LEVEL}`);
 console.log(`${photoFiles.length} photo(s) à analyser\n`);
-
-// ─── SCHÉMA DE RÉPONSE JSON ───────────────────────────────────────────────────
-// Imposé à l'API pour garantir un JSON valide sans parsing fragile
-
-const responseSchema = {
-  type: Type.OBJECT,
-  properties: {
-    indices: {
-      type: Type.STRING,
-      description: 'Description en 1-2 phrases des indices visuels observés',
-    },
-    aircraft_id: {
-      type: Type.STRING,
-      description: 'id choisi parmi le catalogue fourni',
-    },
-    confidence: {
-      type: Type.NUMBER,
-      description: 'Confiance entre 0 et 1',
-    },
-    suggestions: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: '3 ids du catalogue par ordre de probabilité décroissante',
-    },
-  },
-  required: ['indices', 'aircraft_id', 'confidence', 'suggestions'],
-};
-
-// ─── PROMPT ───────────────────────────────────────────────────────────────────
-
-function buildPrompt() {
-  const catalogueList = catalogue
-    .map(a => `- id: ${a.id}  |  ${a.name} (${a.manufacturer})  |  ${a.description}`)
-    .join('\n');
-
-  return `Tu es un expert en identification d'aéronefs.
-
-Examine l'image et procède en deux étapes :
-
-1. INDICES VISUELS : décris en une ou deux phrases les indices observables
-   (nombre et position des moteurs, forme des ailes, type de dérive,
-   train d'atterrissage, cocardes ou livrée reconnaissable).
-
-2. IDENTIFICATION : choisis UNIQUEMENT parmi les identifiants du catalogue ci-dessous.
-   Ne propose pas d'avion hors catalogue.
-
-Catalogue :
-${catalogueList}
-
-Réponds en JSON structuré. Remplis suggestions avec les 3 ids les plus probables
-(aircraft_id inclus en premier).`;
-}
 
 // ─── UTILITAIRES ──────────────────────────────────────────────────────────────
 
@@ -143,93 +95,28 @@ async function resizeImage(filePath) {
     .toBuffer();
 }
 
-// Détermine le mimeType à envoyer (toujours jpeg après resize)
-const MIME_TYPE = 'image/jpeg';
-
-// ─── APPEL API ────────────────────────────────────────────────────────────────
-
-/**
- * Envoie une image à Gemini et retourne { parsed, rawText, inputTokens, outputTokens, thinkingTokens }.
- * Gère une seule ré-tentative en cas d'erreur de quota (429).
- * Arrête le processus si le modèle n'est pas disponible sur le palier gratuit.
- */
-async function analyzeImage(imageBuffer, isRetry = false) {
-  const prompt = buildPrompt();
-
-  let response;
+// Appelle identifyAircraft avec une seule ré-tentative sur erreur de quota
+async function analyzeWithRetry(imageBase64, isRetry = false) {
   try {
-    response = await ai.models.generateContent({
-      model: MODEL,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                mimeType: MIME_TYPE,
-                data: imageBuffer.toString('base64'),
-              },
-            },
-            { text: prompt },
-          ],
-        },
-      ],
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema,
-        thinkingConfig: {
-          thinkingLevel: THINKING_LEVEL,
-        },
-      },
-    });
+    return await identifyAircraft(imageBase64, MIME_TYPE, catalogue);
   } catch (err) {
-    const message = err?.message ?? String(err);
+    const msg = err?.message ?? '';
 
-    // Modèle non disponible sur le palier gratuit → arrêt immédiat
-    if (
-      message.includes('not available') ||
-      message.includes('free tier') ||
-      message.includes('403') ||
-      err?.status === 403
-    ) {
-      console.error('\nErreur : ce modèle n\'est pas disponible sur le palier gratuit.');
-      console.error('Vérifie ton quota Google AI Studio ou essaie un autre modèle.');
-      console.error(`Détail : ${message}`);
+    // Modèle indisponible sur le palier gratuit → arrêt immédiat, pas de ré-essai
+    if (msg.includes('palier gratuit')) {
+      console.error(`\n${msg}`);
       process.exit(1);
     }
 
-    // Quota dépassé (429) → une seule ré-tentative après pause
-    if (
-      (message.includes('429') || err?.status === 429 || message.toLowerCase().includes('quota')) &&
-      !isRetry
-    ) {
-      console.warn(`  ⚠ Quota atteint, attente ${RETRY_WAIT_MS / 1000} s avant ré-essai…`);
+    // Quota dépassé → une seule ré-tentative après pause
+    if (msg.includes('Quota') && !isRetry) {
+      console.warn(`  ⚠ ${msg} Attente ${RETRY_WAIT_MS / 1000} s…`);
       await sleep(RETRY_WAIT_MS);
-      return analyzeImage(imageBuffer, true);
+      return analyzeWithRetry(imageBase64, true);
     }
 
-    // Tout autre erreur après ré-essai ou erreur inconnue → la propage
     throw err;
   }
-
-  // Extraction des tokens depuis les métadonnées de la réponse
-  const usage = response.usageMetadata ?? {};
-  const inputTokens = usage.promptTokenCount ?? null;
-  const outputTokens = usage.candidatesTokenCount ?? null;
-  const thinkingTokens = usage.thoughtsTokenCount ?? null;
-
-  // Texte brut et tentative de parse JSON
-  const rawText = response.text ?? '';
-  let parsed = null;
-  let parseError = false;
-
-  try {
-    parsed = JSON.parse(rawText);
-  } catch {
-    parseError = true;
-  }
-
-  return { parsed, rawText, parseError, inputTokens, outputTokens, thinkingTokens };
 }
 
 // ─── BOUCLE PRINCIPALE ────────────────────────────────────────────────────────
@@ -245,77 +132,38 @@ for (let i = 0; i < photoFiles.length; i++) {
   process.stdout.write(`[${i + 1}/${photoFiles.length}] ${filename} … `);
 
   const startMs = Date.now();
-  let result;
 
   try {
     const imageBuffer = await resizeImage(filePath);
-    const { parsed, rawText, parseError, inputTokens, outputTokens, thinkingTokens } =
-      await analyzeImage(imageBuffer);
+    const { indices, aircraft_id, confidence, suggestions, inputTokens, outputTokens, thinkingTokens } =
+      await analyzeWithRetry(imageBuffer.toString('base64'));
 
     const elapsedMs = Date.now() - startMs;
+    const correct = aircraft_id === expectedId;
+    const inSuggestions = Array.isArray(suggestions) && suggestions.includes(expectedId);
+    const mark = correct ? '✓' : (inSuggestions ? '~' : '✗');
 
-    if (parseError || !parsed) {
-      invalidJsonCount++;
-      console.log('JSON invalide');
-      results.push({
-        filename,
-        expectedId,
-        aircraftId: null,
-        confidence: null,
-        indices: null,
-        suggestions: [],
-        correct: false,
-        inSuggestions: false,
-        elapsedMs,
-        inputTokens,
-        outputTokens,
-        thinkingTokens,
-        error: 'JSON invalide',
-        rawText,
-      });
-    } else {
-      const correct = parsed.aircraft_id === expectedId;
-      const inSuggestions = Array.isArray(parsed.suggestions) &&
-        parsed.suggestions.includes(expectedId);
-      const mark = correct ? '✓' : (inSuggestions ? '~' : '✗');
-      console.log(
-        `${mark}  réponse: ${parsed.aircraft_id}  conf: ${(parsed.confidence ?? 0).toFixed(2)}  ${elapsedMs} ms`
-      );
-      results.push({
-        filename,
-        expectedId,
-        aircraftId: parsed.aircraft_id,
-        confidence: parsed.confidence,
-        indices: parsed.indices,
-        suggestions: parsed.suggestions ?? [],
-        correct,
-        inSuggestions: !correct && inSuggestions,
-        elapsedMs,
-        inputTokens,
-        outputTokens,
-        thinkingTokens,
-        error: null,
-        rawText,
-      });
-    }
+    console.log(
+      `${mark}  réponse: ${aircraft_id}  conf: ${(confidence ?? 0).toFixed(2)}  ${elapsedMs} ms`
+    );
+    results.push({
+      filename, expectedId, aircraftId: aircraft_id, confidence, indices,
+      suggestions: suggestions ?? [], correct, inSuggestions: !correct && inSuggestions,
+      elapsedMs, inputTokens, outputTokens, thinkingTokens, error: null,
+    });
   } catch (err) {
     const elapsedMs = Date.now() - startMs;
-    console.log(`Erreur : ${err.message}`);
+    // Le message d'erreur vient de lib/identification.js, il est en français
+    // et ne contient pas la clé API
+    const errorMsg = err.message ?? 'Erreur inconnue';
+    console.log(`Erreur : ${errorMsg}`);
+    // Comptabilise les JSON invalides séparément
+    if (errorMsg.includes('JSON')) invalidJsonCount++;
     results.push({
-      filename,
-      expectedId,
-      aircraftId: null,
-      confidence: null,
-      indices: null,
-      suggestions: [],
-      correct: false,
-      inSuggestions: false,
-      elapsedMs,
-      inputTokens: null,
-      outputTokens: null,
-      thinkingTokens: null,
-      error: err.message,
-      rawText: null,
+      filename, expectedId, aircraftId: null, confidence: null, indices: null,
+      suggestions: [], correct: false, inSuggestions: false,
+      elapsedMs, inputTokens: null, outputTokens: null, thinkingTokens: null,
+      error: errorMsg,
     });
   }
 
@@ -332,7 +180,6 @@ const correctCount = results.filter(r => r.correct).length;
 const inSuggestionsCount = results.filter(r => r.correct || r.inSuggestions).length;
 const avgMs = Math.round(results.reduce((s, r) => s + r.elapsedMs, 0) / total);
 
-// Corrélation confiance / erreur
 const wrongResults = results.filter(r => !r.correct && r.confidence !== null);
 const rightResults = results.filter(r => r.correct && r.confidence !== null);
 const avgConfWrong = wrongResults.length
@@ -342,12 +189,11 @@ const avgConfRight = rightResults.length
   ? (rightResults.reduce((s, r) => s + r.confidence, 0) / rightResults.length).toFixed(2)
   : 'N/A';
 
-// Estimation du coût pour 1 000 photos
+// ─── ESTIMATION DU COÛT ───────────────────────────────────────────────────────
 // Tarifs gemini-3.8-flash (source : aistudio.google.com/docs/pricing)
 //   Actuels (jusqu'au 31/12/2026) : $0,75 / 1 M tokens entrée  |  $3,75 / 1 M tokens sortie
 //   Standard dès 01/01/2027       : $1,50 / 1 M tokens entrée  |  $7,50 / 1 M tokens sortie
-// Les tokens de réflexion (thinking) comptent dans les tokens de sortie.
-// Les images sont facturées en tokens d'entrée (≈ 1 032 tokens par image 1024×1024, 4 tuiles de 258 tokens).
+// Les tokens de réflexion comptent dans les tokens de sortie.
 
 const validTokenResults = results.filter(r => r.inputTokens !== null && r.outputTokens !== null);
 let costNote = '';
@@ -355,18 +201,13 @@ if (validTokenResults.length > 0) {
   const avgIn = validTokenResults.reduce((s, r) => s + r.inputTokens, 0) / validTokenResults.length;
   const avgOut = validTokenResults.reduce((s, r) => s + r.outputTokens, 0) / validTokenResults.length;
   const avgThinking = validTokenResults.reduce((s, r) => s + (r.thinkingTokens ?? 0), 0) / validTokenResults.length;
-  const avgOutTotal = avgOut + avgThinking; // thinking compris dans sortie
+  const avgOutTotal = avgOut + avgThinking;
 
   const inK = (avgIn * 1000) / 1_000_000;
   const outK = (avgOutTotal * 1000) / 1_000_000;
 
-  const costIntroIn = inK * 0.75;
-  const costIntroOut = outK * 3.75;
-  const costIntro = costIntroIn + costIntroOut;
-
-  const costStdIn = inK * 1.50;
-  const costStdOut = outK * 7.50;
-  const costStd = costStdIn + costStdOut;
+  const costIntro = inK * 0.75 + outK * 3.75;
+  const costStd   = inK * 1.50 + outK * 7.50;
 
   costNote = `
 ### Estimation du coût pour 1 000 photos
@@ -374,48 +215,41 @@ if (validTokenResults.length > 0) {
 > Source tarifs : [aistudio.google.com/docs/pricing](https://aistudio.google.com/docs/pricing) — gemini-3.8-flash
 
 Moyennes observées sur cet échantillon :
-- Tokens d'entrée par photo : ~${Math.round(avgIn)} (texte du prompt + catalogue + image)
-- Tokens de sortie par photo : ~${Math.round(avgOut)} (réponse JSON)
-- Tokens de réflexion par photo : ~${Math.round(avgThinking)} (comptent dans la sortie)
+- Tokens d'entrée : ~${Math.round(avgIn)} / photo  (prompt + catalogue + image)
+- Tokens de sortie : ~${Math.round(avgOut)} / photo  (JSON)
+- Tokens de réflexion : ~${Math.round(avgThinking)} / photo  (comptent dans la sortie)
 
-| Tarif | Entrée (1 000 photos) | Sortie + réflexion | **Total** |
-|---|---|---|---|
-| Actuel jusqu'au 31/12/2026 ($0,75 / $3,75 par 1 M) | $${costIntroIn.toFixed(3)} | $${costIntroOut.toFixed(3)} | **$${costIntro.toFixed(2)}** |
-| Standard dès 01/01/2027 ($1,50 / $7,50 par 1 M) | $${costStdIn.toFixed(3)} | $${costStdOut.toFixed(3)} | **$${costStd.toFixed(2)}** |
+| Tarif | **Total estimé pour 1 000 photos** |
+|---|---|
+| Actuel jusqu'au 31/12/2026 ($0,75 / $3,75 par 1 M) | **$${costIntro.toFixed(2)}** |
+| Standard dès 01/01/2027 ($1,50 / $7,50 par 1 M) | **$${costStd.toFixed(2)}** |
 
-*Estimation indicative basée sur ${validTokenResults.length} appel(s) réel(s). Varie selon la longueur des réponses.*`;
+*Basé sur ${validTokenResults.length} appel(s) réel(s). Varie selon la longueur des réponses.*`;
 } else {
   costNote = `
 ### Estimation du coût pour 1 000 photos
 
 L'API n'a pas retourné de comptage de tokens sur cet échantillon.
 Estimation théorique (source : aistudio.google.com/docs/pricing — gemini-3.8-flash) :
-- ~1 032 tokens d'entrée pour l'image (4 tuiles 512×512 × 258 tokens) + ~700 tokens de prompt/catalogue
-- ~150 tokens de sortie JSON + tokens de réflexion variables selon \`THINKING_LEVEL\`
+- ~1 032 tokens d'entrée pour l'image (4 tuiles 512×512 × 258 tokens) + ~700 tokens de prompt
+- ~150 tokens de sortie JSON + tokens de réflexion variables
 
-| Tarif | Total estimé (hypothèse : ~1 750 tokens entrée, ~300 tokens sortie) |
+| Tarif | Total estimé (~1 750 tokens entrée, ~300 tokens sortie) |
 |---|---|
 | Actuel jusqu'au 31/12/2026 | ~$1,44 pour 1 000 photos |
 | Standard dès 01/01/2027 | ~$2,88 pour 1 000 photos |`;
 }
 
-// ─── GÉNÉRATION DE resultats-<model>-<level>.md ───────────────────────────────
+// ─── ÉCRITURE DE resultats-<model>-<level>.md ─────────────────────────────────
 
 const outputFilename = `resultats-${MODEL}-${THINKING_LEVEL}.md`;
 const outputPath = path.join(__dirname, outputFilename);
 
-// Tableau des résultats photo par photo
-const tableHeader =
-  '| Photo | Attendu | Réponse | Conf. | Indices | ✓ 1er choix | Dans suggestions | Temps (ms) |';
-const tableSep =
-  '|---|---|---|---|---|---|---|---|';
-
 const tableRows = results.map(r => {
   const conf = r.confidence !== null ? r.confidence.toFixed(2) : '—';
   const indices = r.indices ? r.indices.replace(/\|/g, '‖').replace(/\n/g, ' ') : r.error ?? '—';
-  const correct = r.correct ? 'Oui' : 'Non';
   const inSugg = r.correct ? '—' : (r.inSuggestions ? 'Oui' : 'Non');
-  return `| ${r.filename} | ${r.expectedId} | ${r.aircraftId ?? '—'} | ${conf} | ${indices} | ${correct} | ${inSugg} | ${r.elapsedMs} |`;
+  return `| ${r.filename} | ${r.expectedId} | ${r.aircraftId ?? '—'} | ${conf} | ${indices} | ${r.correct ? 'Oui' : 'Non'} | ${inSugg} | ${r.elapsedMs} |`;
 });
 
 const md = `# Résultats du test de reconnaissance d'avions
@@ -429,8 +263,8 @@ const md = `# Résultats du test de reconnaissance d'avions
 
 ## Tableau des résultats
 
-${tableHeader}
-${tableSep}
+| Photo | Attendu | Réponse | Conf. | Indices | ✓ 1er choix | Dans suggestions | Temps (ms) |
+|---|---|---|---|---|---|---|---|
 ${tableRows.join('\n')}
 
 ---
