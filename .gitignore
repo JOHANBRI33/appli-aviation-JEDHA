@@ -37,8 +37,6 @@ yarn-error.log*
 # test de vision — les photos de test ne vont pas dans le dépôt
 scripts/test-vision/photos/*
 !scripts/test-vision/photos/.gitkeep
-# les fichiers de résultats non plus (générés localement)
-scripts/test-vision/resultats-*.md
 
 # vercel
 .vercel
