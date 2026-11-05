@@ -86,7 +86,7 @@ export async function POST(request) {
     );
   }
 
-  const catalogue = loadCatalogue();
+  const catalogue = await loadCatalogue();
 
   let result;
   try {

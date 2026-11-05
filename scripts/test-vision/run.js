@@ -43,7 +43,8 @@ if (!process.env.VISION_API_KEY) {
 
 // ─── CHARGEMENT DU CATALOGUE ──────────────────────────────────────────────────
 
-const catalogue = loadCatalogue();
+// loadCatalogue est async : essaie Supabase d'abord, bascule sur catalogue.json si besoin
+const catalogue = await loadCatalogue();
 const catalogueIds = new Set(catalogue.map(a => a.id));
 
 // ─── LECTURE DES PHOTOS ───────────────────────────────────────────────────────
