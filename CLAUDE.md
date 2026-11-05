@@ -10,11 +10,11 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 
 ## Stack
 
-- Next.js (App Router), [JavaScript ou TypeScript : à fixer]
+- Next.js 16 (App Router), JavaScript
 - Tailwind CSS, conception mobile d'abord
 - Supabase : Postgres, Auth (email), Storage (photos des utilisateurs)
 - `@supabase/supabase-js` et `@supabase/ssr`
-- IA de vision : [fournisseur choisi après le test de la semaine 1], appelée uniquement côté serveur
+- IA de vision : Gemini (`@google/genai`), appelée uniquement côté serveur
 - Déploiement : Vercel (mise en ligne automatique depuis `main`)
 
 ## Commandes
@@ -23,27 +23,66 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - `npm run dev` : lancer en local
 - `npm run build` : vérifier que le projet compile avant chaque pull request
 - `npm run lint` : vérifier le style du code
+- `npm run test:vision` : lancer le script de test de reconnaissance (photos dans `scripts/test-vision/photos/`)
+- `npm run import:catalogue` : importer les données Wikidata + photos Commons dans `supabase/seed/aircraft.sql`
 
 ## Structure des dossiers
 
 - `app/` : pages et routes
-  - `app/page` : accueil
-  - `app/avions/[id]/` : fiche d'un avion
-  - `app/photo/` : prise de photo et résultat
-  - `app/hangar/` : collection de l'utilisateur
-  - `app/classement/` : classement
-  - `app/api/identifier/` : route serveur de reconnaissance
+  - `app/page.js` : accueil
+  - `app/labo/` : page de test de reconnaissance (dev uniquement)
+  - `app/avions/[id]/` : fiche d'un avion *(à créer)*
+  - `app/photo/` : prise de photo et résultat *(à créer)*
+  - `app/hangar/` : collection de l'utilisateur *(à créer)*
+  - `app/classement/` : classement *(à créer)*
+  - `app/api/identifier/` : route serveur de reconnaissance (Gemini)
 - `components/` : composants réutilisables
+  - `components/AircraftCard.js` : carte fiche avion (photo + données techniques)
 - `lib/supabase/` : clients Supabase (navigateur et serveur)
-- `lib/identification` : appel à l'IA de vision
-- `lib/points` : calcul des points et attribution des badges
+- `lib/identification.js` : appel à Gemini + chargement du catalogue depuis Supabase
+- `lib/points` : calcul des points et attribution des badges *(à créer)*
 - `supabase/migrations/` : schéma de la base, versionné
-- `scripts/` : scripts ponctuels (import du catalogue depuis Wikidata et Commons)
+  - `001_aircraft.sql` : table aircraft, RLS
+- `supabase/seed/` : données initiales
+  - `aircraft.sql` : 15 avions générés par `npm run import:catalogue`
+- `scripts/test-vision/` : test de reconnaissance en batch
+  - `catalogue.json` : catalogue de référence (fallback si Supabase vide)
+- `scripts/import-catalogue/` : import Wikidata + Wikimedia Commons
+  - `run.js` : script principal
+  - `wikidata-ids.json` : correspondance id catalogue → Wikidata (à corriger si besoin)
 
-## Modèle de données [à valider en semaine 1]
+## Modèle de données
 
-- `aircraft` : id, name, manufacturer, category (ligne, militaire, collection…), first_flight, max_speed_kmh, description, image_url, image_author, image_license, source, rarity (1 à 5)
-- `profiles` : id (= id de l'utilisateur Supabase Auth), username, points
+### Table `aircraft` ✅ créée (`supabase/migrations/001_aircraft.sql`)
+
+| Colonne | Type | Notes |
+|---|---|---|
+| `id` | text PK | identifiant court : `a320`, `rafale`… |
+| `name` | text | nom complet affiché |
+| `manufacturer` | text | constructeur |
+| `category` | enum | `ligne` / `militaire` / `collection` / `autre` |
+| `description` | text | texte court en français pour l'utilisateur |
+| `recognition_hints` | text | indices visuels pour Gemini (jamais affiché) |
+| `first_flight` | date | date du premier vol |
+| `max_speed_kmh` | integer | vitesse max en km/h |
+| `length_m` | numeric | longueur en mètres |
+| `wingspan_m` | numeric | envergure en mètres |
+| `units_built` | integer | nombre d'exemplaires construits |
+| `rarity` | integer 1–5 | calculé depuis `units_built` |
+| `image_url` | text | miniature 1024 px Wikimedia Commons |
+| `image_author` | text | auteur de la photo (texte brut) |
+| `image_license` | text | ex. `CC BY-SA 4.0` |
+| `image_license_url` | text | lien vers la page de la licence |
+| `image_source_url` | text | lien vers la fiche Commons (crédit obligatoire) |
+| `wikidata_id` | text | ex. `Q5830` |
+| `visible` | boolean | `true` par défaut — masque sans supprimer |
+| `created_at` / `updated_at` | timestamptz | automatiques |
+
+RLS : lecture publique sur `visible = true` ; aucune écriture depuis l'appli.
+
+### Tables à créer
+
+- `profiles` : id (= auth), username, points
 - `captures` : id, user_id, aircraft_id, photo_path, confidence, created_at
 - `badges` : id, code, name, description, rule
 - `user_badges` : user_id, badge_id, earned_at
@@ -65,8 +104,9 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - L'IA de vision n'est appelée que depuis `app/api/`, jamais depuis le navigateur.
 - Chaque photo est réduite (environ 1024 px de côté) avant envoi.
 - Reconnaissance : envoyer la photo et la liste des noms du catalogue ; demander une réponse JSON du type `{ aircraft_id, confidence, suggestions }`. Si la confiance est faible, proposer 3 suggestions au lieu d'une réponse.
-- Row Level Security activée sur toutes les tables Supabase : un utilisateur ne lit et n'écrit que ses propres captures.
+- Row Level Security activée sur toutes les tables Supabase : un utilisateur ne lit et n'écrit que ses propres captures. La table `aircraft` est en lecture publique (anon + authenticated).
 - Photos des fiches : uniquement Wikimedia Commons, avec auteur et licence affichés sous chaque image. Jamais de photos Planespotters, JetPhotos ou Airliners.net.
+- `loadCatalogue()` dans `lib/identification.js` lit d'abord Supabase (`id, name, manufacturer, recognition_hints`) ; si indisponible, bascule sur `scripts/test-vision/catalogue.json` avec un `console.warn`.
 
 ## Façon de travailler
 
