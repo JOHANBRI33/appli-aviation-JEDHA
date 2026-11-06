@@ -321,9 +321,10 @@ export default function LaboClient() {
               </div>
             )}
 
-            {/* Temps de réponse */}
+            {/* Temps de réponse, modèle réellement utilisé et nombre de tentatives */}
             <p className="text-xs text-gray-400 text-right">
-              {result.duration_ms} ms — {thinkingLevel}
+              {result.duration_ms} ms — {thinkingLevel} — {result.model_used} — {result.attempts}{' '}
+              {result.attempts > 1 ? 'tentatives' : 'tentative'}
             </p>
           </div>
 

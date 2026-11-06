@@ -10,6 +10,8 @@
  *
  * La logique Gemini (prompt, schéma JSON, constantes MODEL / THINKING_LEVEL)
  * est dans lib/identification.js, partagée avec la route API de l'appli.
+ * Les nouvelles tentatives et le modèle de secours en cas de saturation
+ * s'y trouvent aussi : ce script en profite via identifyAircraft.
  */
 
 import sharp from 'sharp';
@@ -136,7 +138,7 @@ for (let i = 0; i < photoFiles.length; i++) {
 
   try {
     const imageBuffer = await resizeImage(filePath);
-    const { indices, aircraft_id, confidence, suggestions, inputTokens, outputTokens, thinkingTokens } =
+    const { indices, aircraft_id, confidence, suggestions, model_used, attempts, inputTokens, outputTokens, thinkingTokens } =
       await analyzeWithRetry(imageBuffer.toString('base64'));
 
     const elapsedMs = Date.now() - startMs;
@@ -145,10 +147,10 @@ for (let i = 0; i < photoFiles.length; i++) {
     const mark = correct ? '✓' : (inSuggestions ? '~' : '✗');
 
     console.log(
-      `${mark}  réponse: ${aircraft_id}  conf: ${(confidence ?? 0).toFixed(2)}  ${elapsedMs} ms`
+      `${mark}  réponse: ${aircraft_id}  conf: ${(confidence ?? 0).toFixed(2)}  ${elapsedMs} ms  ${model_used} (${attempts} essai(s))`
     );
     results.push({
-      filename, expectedId, aircraftId: aircraft_id, confidence, indices,
+      filename, expectedId, aircraftId: aircraft_id, confidence, indices, modelUsed: model_used, attempts,
       suggestions: suggestions ?? [], correct, inSuggestions: !correct && inSuggestions,
       elapsedMs, inputTokens, outputTokens, thinkingTokens, error: null,
     });
@@ -161,7 +163,7 @@ for (let i = 0; i < photoFiles.length; i++) {
     // Comptabilise les JSON invalides séparément
     if (errorMsg.includes('JSON')) invalidJsonCount++;
     results.push({
-      filename, expectedId, aircraftId: null, confidence: null, indices: null,
+      filename, expectedId, aircraftId: null, confidence: null, indices: null, modelUsed: null, attempts: null,
       suggestions: [], correct: false, inSuggestions: false,
       elapsedMs, inputTokens: null, outputTokens: null, thinkingTokens: null,
       error: errorMsg,
@@ -250,7 +252,8 @@ const tableRows = results.map(r => {
   const conf = r.confidence !== null ? r.confidence.toFixed(2) : '—';
   const indices = r.indices ? r.indices.replace(/\|/g, '‖').replace(/\n/g, ' ') : r.error ?? '—';
   const inSugg = r.correct ? '—' : (r.inSuggestions ? 'Oui' : 'Non');
-  return `| ${r.filename} | ${r.expectedId} | ${r.aircraftId ?? '—'} | ${conf} | ${indices} | ${r.correct ? 'Oui' : 'Non'} | ${inSugg} | ${r.elapsedMs} |`;
+  const modelUsed = r.modelUsed ? `${r.modelUsed} (${r.attempts})` : '—';
+  return `| ${r.filename} | ${r.expectedId} | ${r.aircraftId ?? '—'} | ${conf} | ${indices} | ${r.correct ? 'Oui' : 'Non'} | ${inSugg} | ${r.elapsedMs} | ${modelUsed} |`;
 });
 
 const md = `# Résultats du test de reconnaissance d'avions
@@ -264,8 +267,8 @@ const md = `# Résultats du test de reconnaissance d'avions
 
 ## Tableau des résultats
 
-| Photo | Attendu | Réponse | Conf. | Indices | ✓ 1er choix | Dans suggestions | Temps (ms) |
-|---|---|---|---|---|---|---|---|
+| Photo | Attendu | Réponse | Conf. | Indices | ✓ 1er choix | Dans suggestions | Temps (ms) | Modèle (tentatives) |
+|---|---|---|---|---|---|---|---|---|
 ${tableRows.join('\n')}
 
 ---

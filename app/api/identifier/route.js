@@ -13,7 +13,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { loadCatalogue, identifyAircraft, THINKING_LEVEL } from '@/lib/identification';
+import { loadCatalogue, identifyAircraft, THINKING_LEVEL, SERVICE_OVERLOADED } from '@/lib/identification';
 
 // Types MIME acceptés (le navigateur peut envoyer du HEIC mais ne peut pas
 // toujours l'afficher — la validation côté serveur reste nécessaire)
@@ -95,6 +95,10 @@ export async function POST(request) {
   } catch (err) {
     const msg = err.message ?? 'Erreur inconnue.';
 
+    // Gemini saturé après tous les essais (détail technique déjà dans la console)
+    if (err.code === SERVICE_OVERLOADED) {
+      return NextResponse.json({ error: msg }, { status: 503 });
+    }
     // Quota dépassé
     if (msg.includes('Quota') || msg.includes('quota')) {
       return NextResponse.json({ error: msg }, { status: 429 });
@@ -159,5 +163,7 @@ export async function POST(request) {
     suggestions:  result.suggestions,
     fichesById,   // { aircraft_id: fiche, ... } — peut être vide si Supabase indisponible
     duration_ms,
+    model_used:   result.model_used,
+    attempts:     result.attempts,
   });
 }
