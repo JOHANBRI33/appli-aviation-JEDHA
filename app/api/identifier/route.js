@@ -115,6 +115,7 @@ export async function POST(request) {
   }
 
   const duration_ms = Date.now() - startMs;
+  console.log(`/api/identifier: réponse de ${result.model_used} en ${duration_ms} ms (${result.attempts} tentative(s))`);
 
   // Nom de l'avion reconnu (depuis le catalogue déjà chargé)
   const matched = catalogue.find(a => a.id === result.aircraft_id);
