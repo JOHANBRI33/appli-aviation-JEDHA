@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:vision": "node --conditions=react-server --env-file=.env.local scripts/test-vision/run.js"
+    "test:vision": "node --conditions=react-server --env-file=.env.local scripts/test-vision/run.js",
+    "import:catalogue": "node scripts/import-catalogue/run.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

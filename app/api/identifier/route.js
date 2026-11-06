@@ -12,6 +12,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { loadCatalogue, identifyAircraft, THINKING_LEVEL } from '@/lib/identification';
 
 // Types MIME acceptés (le navigateur peut envoyer du HEIC mais ne peut pas
@@ -86,7 +87,7 @@ export async function POST(request) {
     );
   }
 
-  const catalogue = loadCatalogue();
+  const catalogue = await loadCatalogue();
 
   let result;
   try {
@@ -111,17 +112,52 @@ export async function POST(request) {
 
   const duration_ms = Date.now() - startMs;
 
-  // Enrichit la réponse avec le nom complet de l'avion trouvé dans le catalogue
+  // Nom de l'avion reconnu (depuis le catalogue déjà chargé)
   const matched = catalogue.find(a => a.id === result.aircraft_id);
   const aircraft_name = matched?.name ?? result.aircraft_id;
 
+  // ── Fiches Supabase ───────────────────────────────────────────────────────
+  // Récupère la fiche complète de l'avion reconnu + les 3 suggestions
+  // pour les afficher dans la page labo sans appel supplémentaire côté client.
+  // Si Supabase est indisponible ou la table vide, fichesById = {} et la carte
+  // n'est simplement pas affichée — la reconnaissance reste fonctionnelle.
+  let fichesById = {};
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const allIds = [...new Set([result.aircraft_id, ...(result.suggestions ?? [])])];
+
+      const { data: fiches } = await supabase
+        .from('aircraft')
+        .select([
+          'id', 'name', 'manufacturer', 'category', 'description',
+          'first_flight', 'max_speed_kmh', 'length_m', 'wingspan_m',
+          'units_built', 'rarity',
+          'image_url', 'image_author', 'image_license',
+          'image_license_url', 'image_source_url',
+        ].join(', '))
+        .in('id', allIds);
+
+      if (fiches) {
+        fichesById = Object.fromEntries(fiches.map(f => [f.id, f]));
+      }
+    }
+  } catch (err) {
+    // Supabase injoignable — les fiches seront absentes, l'appli reste utilisable
+    console.warn('/api/identifier: fiches Supabase indisponibles :', err.message);
+  }
+
   // La clé API n'apparaît jamais dans la réponse (elle est dans result côté lib seulement)
   return NextResponse.json({
-    indices: result.indices,
-    aircraft_id: result.aircraft_id,
+    indices:      result.indices,
+    aircraft_id:  result.aircraft_id,
     aircraft_name,
-    confidence: result.confidence,
-    suggestions: result.suggestions,
+    confidence:   result.confidence,
+    suggestions:  result.suggestions,
+    fichesById,   // { aircraft_id: fiche, ... } — peut être vide si Supabase indisponible
     duration_ms,
   });
 }

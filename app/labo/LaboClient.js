@@ -16,6 +16,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import imageCompression from 'browser-image-compression';
+import AircraftCard from '@/components/AircraftCard';
 
 // Niveaux de réflexion proposés à l'utilisateur
 const THINKING_LEVELS = [
@@ -32,13 +33,14 @@ const COMPRESSION_OPTIONS = {
 };
 
 export default function LaboClient() {
-  const [thinkingLevel, setThinkingLevel] = useState('low');
-  const [preview, setPreview]   = useState(null);   // URL blob pour l'aperçu
-  const [loading, setLoading]   = useState(false);  // analyse en cours
-  const [result, setResult]     = useState(null);   // dernière réponse API
-  const [error, setError]       = useState(null);   // message d'erreur à afficher
-  const [history, setHistory]   = useState([]);     // historique de la session
-  const [dragOver, setDragOver] = useState(false);  // survol drag-and-drop
+  const [thinkingLevel, setThinkingLevel]   = useState('low');
+  const [preview, setPreview]               = useState(null);   // URL blob pour l'aperçu
+  const [loading, setLoading]               = useState(false);  // analyse en cours
+  const [result, setResult]                 = useState(null);   // dernière réponse API
+  const [selectedFiche, setSelectedFiche]   = useState(null);   // fiche avion affichée
+  const [error, setError]                   = useState(null);   // message d'erreur
+  const [history, setHistory]               = useState([]);     // historique session
+  const [dragOver, setDragOver]             = useState(false);  // survol drag-and-drop
 
   const inputRef = useRef(null);
 
@@ -49,6 +51,7 @@ export default function LaboClient() {
 
     setError(null);
     setResult(null);
+    setSelectedFiche(null);
 
     // Vérification du type MIME côté client
     const accepted = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
@@ -88,6 +91,8 @@ export default function LaboClient() {
       }
 
       setResult(data);
+      // Affiche d'abord la fiche de l'avion reconnu (si disponible dans Supabase)
+      setSelectedFiche(data.fichesById?.[data.aircraft_id] ?? null);
 
       // Ajout à l'historique (miniature + résultat)
       setHistory(prev => [
@@ -243,61 +248,88 @@ export default function LaboClient() {
 
       {/* Résultat de la dernière analyse */}
       {result && !loading && (
-        <section className="mt-6 rounded-2xl bg-white border border-sky-100 shadow-sm p-5">
-          <h2 className="text-lg font-bold text-sky-800 mb-4">{result.aircraft_name}</h2>
+        <section className="mt-6 space-y-4">
 
-          {/* Barre de confiance */}
-          <div className="mb-4">
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-gray-500">Confiance</span>
-              <span className={`font-semibold ${confidenceLabel(result.confidence)}`}>
-                {Math.round(result.confidence * 100)} %
-              </span>
+          {/* ── Résumé Gemini ─────────────────────────────────────────────── */}
+          <div className="rounded-2xl bg-white border border-sky-100 shadow-sm p-5">
+            <h2 className="text-lg font-bold text-sky-800 mb-4">{result.aircraft_name}</h2>
+
+            {/* Barre de confiance */}
+            <div className="mb-4">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-gray-500">Confiance</span>
+                <span className={`font-semibold ${confidenceLabel(result.confidence)}`}>
+                  {Math.round(result.confidence * 100)} %
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+                <div
+                  className={`h-2 rounded-full transition-all ${confidenceColor(result.confidence)}`}
+                  style={{ width: `${Math.round(result.confidence * 100)}%` }}
+                />
+              </div>
             </div>
-            <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
-              <div
-                className={`h-2 rounded-full transition-all ${confidenceColor(result.confidence)}`}
-                style={{ width: `${Math.round(result.confidence * 100)}%` }}
-              />
-            </div>
+
+            {/* Indices visuels relevés par Gemini */}
+            {result.indices && (
+              <div className="mb-4">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  Indices relevés
+                </p>
+                <p className="text-sm text-gray-700">{result.indices}</p>
+              </div>
+            )}
+
+            {/* 3 suggestions cliquables — affichent la fiche correspondante */}
+            {result.suggestions?.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                  3 suggestions
+                </p>
+                <ol className="space-y-1.5">
+                  {result.suggestions.map((id, i) => {
+                    const fiche = result.fichesById?.[id];
+                    const label = fiche?.name ?? id;
+                    const isSelected = selectedFiche?.id === id;
+                    return (
+                      <li key={id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedFiche(fiche ?? null)}
+                          className={`
+                            w-full flex items-center gap-2 rounded-xl px-3 py-2 text-sm
+                            text-left transition-colors
+                            ${isSelected
+                              ? 'bg-sky-100 border border-sky-300 text-sky-800'
+                              : 'bg-gray-50 border border-gray-200 text-gray-700 hover:bg-sky-50 hover:border-sky-200'}
+                          `}
+                        >
+                          <span className={`
+                            flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold shrink-0
+                            ${isSelected ? 'bg-sky-600 text-white' : 'bg-sky-100 text-sky-700'}
+                          `}>
+                            {i + 1}
+                          </span>
+                          <span className={isSelected ? 'font-semibold' : ''}>
+                            {label}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            )}
+
+            {/* Temps de réponse */}
+            <p className="text-xs text-gray-400 text-right">
+              {result.duration_ms} ms — {thinkingLevel}
+            </p>
           </div>
 
-          {/* Indices visuels relevés par Gemini */}
-          {result.indices && (
-            <div className="mb-4">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                Indices relevés
-              </p>
-              <p className="text-sm text-gray-700">{result.indices}</p>
-            </div>
-          )}
+          {/* ── Fiche avion (vide si Supabase pas encore alimenté) ─────────── */}
+          {selectedFiche && <AircraftCard fiche={selectedFiche} />}
 
-          {/* 3 suggestions */}
-          {result.suggestions?.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                3 suggestions
-              </p>
-              <ol className="space-y-1">
-                {result.suggestions.map((id, i) => (
-                  <li key={id} className="flex items-center gap-2 text-sm">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full
-                                     bg-sky-100 text-sky-700 text-xs font-bold shrink-0">
-                      {i + 1}
-                    </span>
-                    <span className={id === result.aircraft_id ? 'font-semibold text-sky-700' : 'text-gray-600'}>
-                      {id}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-
-          {/* Temps de réponse */}
-          <p className="text-xs text-gray-400 text-right">
-            {result.duration_ms} ms — {thinkingLevel}
-          </p>
         </section>
       )}
 

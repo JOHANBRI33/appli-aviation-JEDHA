@@ -1,0 +1,18 @@
+{
+  "_comment": "Correspondance id catalogue → identifiant Wikidata. Corrigez ici si un ID est ambigu ou faux, puis relancez npm run import:catalogue.",
+  "a320":        { "id": "Q18784360", "note": "Airbus A320 (monocouloir)" },
+  "a321":        { "id": "Q3278675",  "note": "Airbus A321" },
+  "b737":        { "id": "Q6387",     "note": "Boeing 737 (famille)" },
+  "a380":        { "id": "Q5830",     "note": "Airbus A380" },
+  "b747":        { "id": "Q179",      "note": "Boeing 747 (famille)" },
+  "concorde":    { "id": "Q6505",     "note": "Concorde (supersonique franco-britannique)" },
+  "rafale":      { "id": "Q190973",   "note": "Dassault Rafale" },
+  "mirage-2000": { "id": "Q200038",   "note": "Dassault Mirage 2000 (famille)" },
+  "f16":         { "id": "Q100026",   "note": "General Dynamics F-16 Fighting Falcon" },
+  "fa18":        { "id": "Q46397",    "note": "McDonnell Douglas F/A-18 Hornet" },
+  "spitfire":    { "id": "Q29190",    "note": "Supermarine Spitfire" },
+  "hurricane":   { "id": "Q194251",   "note": "Hawker Hurricane" },
+  "dc3":         { "id": "Q190211",   "note": "Douglas DC-3" },
+  "p51":         { "id": "Q192075",   "note": "North American P-51 Mustang" },
+  "a350":        { "id": "Q6484",     "note": "Airbus A350 XWB" }
+}
