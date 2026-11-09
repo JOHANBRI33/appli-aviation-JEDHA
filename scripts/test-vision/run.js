@@ -23,6 +23,7 @@ import { fileURLToPath } from 'url';
 import {
   MODEL,
   THINKING_LEVEL,
+  UNKNOWN_ID,
   loadCatalogue,
   identifyAircraft,
 } from '../../lib/identification.js';
@@ -47,13 +48,14 @@ if (!process.env.VISION_API_KEY) {
 
 // loadCatalogue est async : essaie Supabase d'abord, bascule sur catalogue.json si besoin
 const catalogue = await loadCatalogue();
-const catalogueIds = new Set(catalogue.map(a => a.id));
+// « inconnu-01.jpg » : photo d'un avion hors catalogue, la bonne réponse est UNKNOWN_ID
+const catalogueIds = new Set([...catalogue.map(a => a.id), UNKNOWN_ID]);
 
 // ─── LECTURE DES PHOTOS ───────────────────────────────────────────────────────
 
 const photoFiles = fs
   .readdirSync(PHOTOS_DIR)
-  .filter(f => /\.(jpe?g|png|webp|heic|heif)$/i.test(f))
+  .filter(f => /\.(jpe?g|png|webp|avif|heic|heif)$/i.test(f))
   .sort();
 
 if (photoFiles.length === 0) {
