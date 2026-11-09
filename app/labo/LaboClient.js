@@ -20,6 +20,7 @@ import AircraftCard from '@/components/AircraftCard';
 
 // Niveaux de réflexion proposés à l'utilisateur
 const THINKING_LEVELS = [
+  { value: 'minimal', label: 'Très rapide (minimal)' },
   { value: 'low',    label: 'Rapide (low)' },
   { value: 'medium', label: 'Équilibré (medium)' },
   { value: 'high',   label: 'Précis (high)' },
@@ -33,7 +34,7 @@ const COMPRESSION_OPTIONS = {
 };
 
 export default function LaboClient() {
-  const [thinkingLevel, setThinkingLevel]   = useState('low');
+  const [thinkingLevel, setThinkingLevel]   = useState('minimal');
   const [preview, setPreview]               = useState(null);   // URL blob pour l'aperçu
   const [loading, setLoading]               = useState(false);  // analyse en cours
   const [result, setResult]                 = useState(null);   // dernière réponse API
@@ -321,9 +322,10 @@ export default function LaboClient() {
               </div>
             )}
 
-            {/* Temps de réponse */}
+            {/* Temps de réponse, modèle réellement utilisé et nombre de tentatives */}
             <p className="text-xs text-gray-400 text-right">
-              {result.duration_ms} ms — {thinkingLevel}
+              {result.duration_ms} ms — {thinkingLevel} — {result.model_used} — {result.attempts}{' '}
+              {result.attempts > 1 ? 'tentatives' : 'tentative'}
             </p>
           </div>
 

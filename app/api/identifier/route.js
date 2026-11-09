@@ -13,13 +13,13 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { loadCatalogue, identifyAircraft, THINKING_LEVEL } from '@/lib/identification';
+import { loadCatalogue, identifyAircraft, THINKING_LEVEL, SERVICE_OVERLOADED, UNKNOWN_ID } from '@/lib/identification';
 
 // Types MIME acceptés (le navigateur peut envoyer du HEIC mais ne peut pas
 // toujours l'afficher — la validation côté serveur reste nécessaire)
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 Mo
-const VALID_THINKING_LEVELS = new Set(['low', 'medium', 'high']);
+const VALID_THINKING_LEVELS = new Set(['minimal', 'low', 'medium', 'high']);
 
 export async function POST(request) {
   // ── Guard production ────────────────────────────────────────────────────────
@@ -95,6 +95,10 @@ export async function POST(request) {
   } catch (err) {
     const msg = err.message ?? 'Erreur inconnue.';
 
+    // Gemini saturé après tous les essais (détail technique déjà dans la console)
+    if (err.code === SERVICE_OVERLOADED) {
+      return NextResponse.json({ error: msg }, { status: 503 });
+    }
     // Quota dépassé
     if (msg.includes('Quota') || msg.includes('quota')) {
       return NextResponse.json({ error: msg }, { status: 429 });
@@ -111,10 +115,13 @@ export async function POST(request) {
   }
 
   const duration_ms = Date.now() - startMs;
+  console.log(`/api/identifier: réponse de ${result.model_used} en ${duration_ms} ms (${result.attempts} tentative(s))`);
 
   // Nom de l'avion reconnu (depuis le catalogue déjà chargé)
   const matched = catalogue.find(a => a.id === result.aircraft_id);
-  const aircraft_name = matched?.name ?? result.aircraft_id;
+  const aircraft_name = result.aircraft_id === UNKNOWN_ID
+    ? 'Avion non reconnu (hors catalogue ?)'
+    : matched?.name ?? result.aircraft_id;
 
   // ── Fiches Supabase ───────────────────────────────────────────────────────
   // Récupère la fiche complète de l'avion reconnu + les 3 suggestions
@@ -159,5 +166,7 @@ export async function POST(request) {
     suggestions:  result.suggestions,
     fichesById,   // { aircraft_id: fiche, ... } — peut être vide si Supabase indisponible
     duration_ms,
+    model_used:   result.model_used,
+    attempts:     result.attempts,
   });
 }
