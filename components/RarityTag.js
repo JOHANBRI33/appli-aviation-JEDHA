@@ -25,9 +25,9 @@ export default function RarityTag({ rarity }) {
   if (!level) return null;
 
   return (
-    <span className={`typo-data inline-flex items-center gap-1.5 rounded-full px-2.5 py-[5px] ${COLORS[rarity]}`}>
+    <span className={`typo-data inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.25 ${COLORS[rarity]}`}>
       {/* Point de couleur, dans la couleur du texte */}
-      <span aria-hidden="true" className="h-[7px] w-[7px] rounded-full bg-current" />
+      <span aria-hidden="true" className="h-1.75 w-1.75 rounded-full bg-current" />
       {level.label} · {level.points} pts
     </span>
   );

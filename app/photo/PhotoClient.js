@@ -304,7 +304,7 @@ function IdleView({ onCamera, onGallery }) {
 function ViewfinderCorners() {
   const corner = 'absolute h-11 w-11 border-on-brand';
   return (
-    <div aria-hidden="true" className="absolute left-1/2 top-1/2 h-[260px] w-[260px] -translate-x-1/2 -translate-y-1/2">
+    <div aria-hidden="true" className="absolute left-1/2 top-1/2 h-65 w-65 -translate-x-1/2 -translate-y-1/2">
       <span className={`${corner} left-0 top-0 border-l-[3px] border-t-[3px]`} />
       <span className={`${corner} right-0 top-0 border-r-[3px] border-t-[3px]`} />
       <span className={`${corner} bottom-0 left-0 border-b-[3px] border-l-[3px]`} />
@@ -328,7 +328,7 @@ function ProgressBar() {
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-on-brand/15">
       <div
-        className="h-full rounded-full bg-brand-blue transition-[width] duration-[6000ms] ease-out"
+        className="h-full rounded-full bg-brand-blue transition-[width] duration-6000 ease-out"
         style={{ width }}
       />
     </div>
@@ -339,7 +339,7 @@ function LoadingView({ preview, onCancel }) {
   return (
     <div className="flex flex-1 flex-col bg-brand-navy">
       {/* Photo de l'utilisateur avec le cadre de visée */}
-      <div className="relative h-[64dvh] overflow-hidden bg-gradient-to-b from-brand-blue to-brand-blue-soft">
+      <div className="relative h-[64dvh] overflow-hidden bg-linear-to-b from-brand-blue to-brand-blue-soft">
         {preview && (
           // eslint-disable-next-line @next/next/no-img-element -- URL blob locale, next/image ne gère pas blob:
           <img src={preview} alt="Ta photo" className="h-full w-full object-cover" />
@@ -422,7 +422,7 @@ function SuggestionsView({ preview, result, onChoose, onRestart }) {
       <button
         type="button"
         onClick={onRestart}
-        className="flex h-[52px] items-center gap-1.5 self-start px-4 text-base font-semibold text-ink"
+        className="flex h-13 items-center gap-1.5 self-start px-4 text-base font-semibold text-ink"
       >
         <ChevronLeftIcon className="h-6 w-6" />
         Résultat
@@ -472,18 +472,18 @@ function SuggestionRow({ id, fiche, onChoose }) {
     <button
       type="button"
       onClick={() => onChoose(id)}
-      className="flex w-full items-center gap-3 rounded-[16px] border border-line bg-surface-raised
+      className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface-raised
                  py-3 pl-3 pr-3.5 text-left active:bg-brand-blue-soft"
     >
       {/* Vignette : dégradé + avion (pas de photo Commons ici, faute de place pour le crédit) */}
-      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-sm bg-gradient-to-b from-brand-blue to-brand-blue-soft text-on-brand">
-        <PlaneIcon className="h-[26px] w-[26px]" strokeWidth={1.5} />
+      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-sm bg-linear-to-b from-brand-blue to-brand-blue-soft text-on-brand">
+        <PlaneIcon className="h-6.5 w-6.5" strokeWidth={1.5} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="typo-item-title truncate text-ink">{fiche?.name ?? id}</span>
         {details && <span className="truncate text-xs text-ink-muted">{details}</span>}
       </span>
-      <ChevronRightIcon className="h-[18px] w-[18px] text-ink" />
+      <ChevronRightIcon className="h-4.5 w-4.5 text-ink" />
     </button>
   );
 }
@@ -515,7 +515,7 @@ function ErrorView({ message, onRetry, onRestart }) {
 
 // ─── Photo prise par l'utilisateur ───────────────────────────────────────────
 
-function UserPhoto({ preview, className = 'aspect-[4/3]' }) {
+function UserPhoto({ preview, className = 'aspect-4/3' }) {
   if (!preview) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- URL blob locale, next/image ne gère pas blob:
