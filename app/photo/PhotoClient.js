@@ -39,6 +39,29 @@ const COMPRESSION_OPTIONS = {
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
+// Certains téléphones et galeries ne donnent pas le type du fichier
+// (file.type vide, surtout pour le HEIC) : on le déduit alors de l'extension.
+const TYPES_BY_EXTENSION = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+  webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+};
+
+/** Type de la photo (« image/jpeg »…), ou null si le format n'est pas accepté. */
+function photoType(file) {
+  const extension = file.name.split('.').pop().toLowerCase();
+  const type = file.type || TYPES_BY_EXTENSION[extension] || '';
+  return ACCEPTED_TYPES.includes(type) ? type : null;
+}
+
+/** Lit la réponse JSON du serveur, ou null si ce n'en est pas (page d'erreur HTML…). */
+async function readJson(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 // Libellés des catégories (colonne aircraft.category)
 const CATEGORY_LABELS = {
   ligne:      'Ligne',
@@ -143,46 +166,68 @@ export default function PhotoClient() {
     setShowSuggestions(false);
     setLastFile(file);
 
-    if (!ACCEPTED_TYPES.includes(file.type)) {
+    if (!photoType(file)) {
       setError('Ce format de photo n’est pas pris en charge. Essaie avec une photo en JPEG.');
       setStep('error');
       return;
     }
 
     if (preview) URL.revokeObjectURL(preview); // libère l'ancienne photo
-    setPreview(URL.createObjectURL(file));
+    setPreview(null);
     setStep('loading');
 
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // 1. Réduction à 1024 px. Elle échoue quand le navigateur ne sait pas lire
+    //    la photo (HEIC hors Safari, par exemple) : ce n'est pas un problème
+    //    de connexion, on le dit clairement.
+    let compressed;
     try {
-      const compressed = await imageCompression(file, COMPRESSION_OPTIONS);
-      if (controller.signal.aborted) return; // annulé pendant la réduction
+      compressed = await imageCompression(file, COMPRESSION_OPTIONS);
+    } catch (err) {
+      console.warn('Réduction de la photo impossible :', err);
+      if (controller.signal.aborted) return;
+      setError('Ton navigateur n’arrive pas à lire cette photo (souvent un HEIC d’iPhone). Essaie avec une photo en JPEG.');
+      setStep('error');
+      return;
+    }
+    if (controller.signal.aborted) return; // annulé pendant la réduction
 
+    // Aperçu à partir de la photo réduite, en JPEG : il s'affiche même
+    // quand le navigateur ne sait pas afficher l'original (HEIC)
+    setPreview(URL.createObjectURL(compressed));
+
+    // 2. Envoi au serveur
+    let response;
+    try {
       const formData = new FormData();
       formData.append('image', compressed, 'photo.jpg');
-
-      const response = await fetch('/api/identifier', {
+      response = await fetch('/api/identifier', {
         method: 'POST',
         body: formData,
         signal: controller.signal,
       });
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error ?? 'L’analyse a échoué. Réessaie dans un instant.');
-        setStep('error');
-        return;
-      }
-
-      setResult(data);
-      setStep('result');
     } catch (err) {
       if (err.name === 'AbortError') return; // l'utilisateur a annulé
       setError('Impossible de joindre le serveur. Vérifie ta connexion et réessaie.');
       setStep('error');
+      return;
     }
+
+    // 3. Lecture de la réponse : une erreur peut arriver sous forme de page
+    //    HTML (photo trop lourde refusée par l'hébergeur, panne…), pas en JSON
+    const data = await readJson(response);
+    if (controller.signal.aborted) return;
+
+    if (!response.ok || !data) {
+      setError(data?.error ?? `L’analyse a échoué (erreur ${response.status}). Réessaie dans un instant.`);
+      setStep('error');
+      return;
+    }
+
+    setResult(data);
+    setStep('result');
   }
 
   function onFileChange(e) {
@@ -244,7 +289,7 @@ export default function PhotoClient() {
       {step === 'error' && (
         <ErrorView
           message={error}
-          onRetry={lastFile && ACCEPTED_TYPES.includes(lastFile.type) ? () => analyse(lastFile) : null}
+          onRetry={lastFile && photoType(lastFile) ? () => analyse(lastFile) : null}
           onRestart={restart}
         />
       )}
