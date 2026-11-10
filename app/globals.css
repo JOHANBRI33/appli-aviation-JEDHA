@@ -1,26 +1,197 @@
+/*
+ * app/globals.css — charte graphique Flight Hunter
+ *
+ * Tailwind CSS 4 se configure ici, dans le bloc @theme (pas de tailwind.config.js).
+ * Chaque variable --color-xxx crée les classes bg-xxx, text-xxx, border-xxx…
+ * Les noms reprennent ceux de la charte (page « Flight Hunter » et Figma).
+ *
+ * La palette Tailwind par défaut (sky, gray…) reste disponible pour le code
+ * existant, mais tout nouveau code utilise les jetons ci-dessous.
+ */
+
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ---------------------------------------------------------------- Couleurs */
+@theme {
+  /* Marque : les bleus du logo */
+  --color-brand-navy: #0a1f4f;        /* fonds forts : score, date, bouton sombre */
+  --color-brand-blue: #1e5bff;        /* toute action : bouton principal, Scanner, liens, onglet actif */
+  --color-brand-blue-strong: #1747d6; /* bouton principal appuyé, petit texte bleu */
+  --color-brand-blue-soft: #e3ecff;   /* pastilles d'icône, encarts d'information */
+  --color-brand-cyan: #22c8ff;        /* décor uniquement, jamais pour du texte sur fond clair */
+
+  /* Fond ciel */
+  --color-sky-top: #8fc2ff;           /* haut du ciel, derrière la barre d'état */
+  --color-sky-mid: #c7e1ff;           /* là où commencent les titres */
+
+  /* Fonds et texte */
+  --color-surface: #f4f7fc;           /* fond des écrans */
+  --color-surface-raised: #ffffff;    /* cartes, champs, lignes de liste */
+  --color-line: #dce3ef;              /* bordures et séparateurs */
+  --color-ink: #0a1f4f;               /* texte principal */
+  --color-ink-muted: #55627a;         /* texte secondaire */
+  --color-on-brand: #ffffff;          /* texte sur brand-navy et brand-blue */
+
+  /* Récompenses (jamais pour une action) */
+  --color-reward: #ff5a1f;            /* gros chiffres de points (24 px et plus), médailles */
+  --color-reward-text: #c2410c;       /* petit texte « +50 pts » */
+  --color-reward-soft: #ffeadf;       /* fond de l'encart « Nouveau ! » */
+
+  /* États : toujours accompagnés d'un mot ou d'une icône */
+  --color-success: #17703d;
+  --color-success-soft: #e2f1e8;
+  --color-danger: #b42318;
+
+  /* Rareté : texte et point en rarity-xxx, fond en rarity-xxx-soft */
+  --color-rarity-common: #555f72;
+  --color-rarity-common-soft: #eceef2;
+  --color-rarity-uncommon: #17703d;
+  --color-rarity-uncommon-soft: #e2f1e8;
+  --color-rarity-rare: #1747d6;
+  --color-rarity-rare-soft: #e3ecff;
+  --color-rarity-epic: #6b2fc4;
+  --color-rarity-epic-soft: #eee6fa;
+  --color-rarity-legendary: #8a5a00;
+  --color-rarity-legendary-soft: #f8eed6;
+
+  --color-focus: #1e5bff;             /* anneau de focus clavier */
+
+  /* ------------------------------------------------- Rayons (classes rounded-xxx) */
+  --radius-sm: 12px;    /* rounded-sm : vignettes photo dans une ligne, encarts */
+  --radius-md: 14px;    /* rounded-md : boutons, champs, cases de caractéristiques */
+  --radius-lg: 20px;    /* rounded-lg : cartes, vignettes du Hangar */
+  /* rounded-full : étiquettes, filtres, bouton Scanner, médailles */
+
+  /* ---------------------------------------------- Ombres (classes shadow-xxx) */
+  /* Les cartes n'ont pas d'ombre : elles sont séparées par border-line. */
+  --shadow-scan: 0 6px 14px rgb(30 91 255 / 0.35);  /* bouton Scanner de la navigation */
+  --shadow-tab: 0 2px 6px rgb(10 31 79 / 0.12);     /* onglet actif du Hangar */
+
+  /*
+   * Espacements : la grille Tailwind est déjà celle de la charte (4 px).
+   * space-3 = p-3 / gap-3 = 12 px, space-4 = p-4 = 16 px, space-6 = px-6 = 24 px.
+   */
 }
 
+/* ----------------------------------------------------------------- Polices */
+/* Les variables --font-xxx-yyy sont créées par next/font dans app/layout.js. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif; /* font-display */
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;                  /* font-sans (par défaut) */
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;         /* font-mono */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ------------------------------------------------------- Styles de texte */
+/* Une classe par style de la charte : <h1 className="typo-title-lg">Mon Hangar</h1> */
+
+@utility typo-display-xl {   /* nom de l'avion en tête de fiche */
+  font-family: var(--font-display);
+  font-size: 44px;
+  line-height: 46px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+@utility typo-display-reward { /* « +50 » sur l'écran de récompense, avec text-reward */
+  font-family: var(--font-display);
+  font-size: 128px;
+  line-height: 120px;
+  font-weight: 700;
+}
+@utility typo-title-lg {     /* titre d'écran */
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 36px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+@utility typo-title-md {     /* titre de bloc */
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+@utility typo-stat {         /* valeur d'une caractéristique : « Mach 1,8 » */
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 24px;
+  font-weight: 600;
+}
+@utility typo-body-lg {      /* accroche */
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 400;
+}
+@utility typo-body {         /* texte courant, histoire de l'avion */
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+}
+@utility typo-body-sm {      /* texte secondaire, avec text-ink-muted */
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 400;
+}
+@utility typo-label {        /* libellé de bouton */
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 600;
+}
+@utility typo-item-title {   /* nom dans une vignette ou une ligne de liste */
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+@utility typo-data {         /* étiquettes de rareté, intitulés, compteurs */
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+@utility typo-credit {       /* crédit photo et source des données */
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 400;
+}
+
+/* ------------------------------------------------------------- Fond ciel */
+/* Utilisé par components/SkyBackground.js, placé derrière le contenu de la page. */
+@utility bg-sky-clouds {
+  background-color: var(--color-surface);
+  background-image:
+    url("/sky-clouds.svg"),
+    linear-gradient(
+      to bottom,
+      var(--color-sky-top) 0%,
+      var(--color-sky-mid) 12%,
+      #e2eeff 42%, /* palier intermédiaire du dégradé de la charte */
+      var(--color-surface) 72%
+    );
+  background-repeat: no-repeat;
+  background-size: 100% auto, 100% 100%;
+  background-position: top center, top center;
+}
+
+/* ------------------------------------------------------------------ Base */
+@layer base {
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Focus clavier visible sur tout élément interactif */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
 }
