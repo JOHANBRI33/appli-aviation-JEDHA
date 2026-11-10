@@ -11,7 +11,7 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 ## Stack
 
 - Next.js 16 (App Router), JavaScript
-- Tailwind CSS, conception mobile d'abord
+- Tailwind CSS 4, conception mobile d'abord (configuration dans `app/globals.css`, bloc `@theme` : pas de `tailwind.config.js`)
 - Supabase : Postgres, Auth (email), Storage (photos des utilisateurs)
 - `@supabase/supabase-js` et `@supabase/ssr`
 - IA de vision : Gemini (`@google/genai`), appelée uniquement côté serveur
@@ -38,6 +38,8 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
   - `app/api/identifier/` : route serveur de reconnaissance (Gemini)
 - `components/` : composants réutilisables
   - `components/AircraftCard.js` : carte fiche avion (photo + données techniques)
+  - `components/SkyBackground.js` : fond ciel avec nuages des écrans principaux
+- `public/` : logo (`logo-flight-hunter.png`), icônes de l'appli (`icons/`), nuages du fond ciel (`sky-clouds.svg`)
 - `lib/supabase/` : clients Supabase (navigateur et serveur)
 - `lib/identification.js` : appel à Gemini + chargement du catalogue depuis Supabase
 - `lib/points` : calcul des points et attribution des badges *(à créer)*
@@ -94,6 +96,26 @@ RLS : lecture publique sur `visible = true` ; aucune écriture depuis l'appli.
 - Conception mobile d'abord : tester chaque écran en largeur téléphone.
 - Aucune nouvelle dépendance sans accord de l'équipe.
 - Code simple et lisible, commenté quand ce n'est pas évident : chaque membre doit pouvoir l'expliquer en soutenance.
+
+## Charte graphique (Flight Hunter)
+
+La référence est la charte « Flight Hunter » et le Figma « Appli aviation — Écrans MVP ». Les jetons sont dans `app/globals.css`. Tout nouveau code utilise ces classes, jamais la palette par défaut (`sky-*`, `gray-*`) ni de couleur en dur.
+
+- **Le bleu agit, l'orange récompense.** `bg-brand-blue text-on-brand` pour le bouton principal (une seule action principale par écran) ; `reward` uniquement pour les points, la nouveauté et les badges, jamais pour une action.
+- Couleurs :
+  - Fonds : `bg-surface` (écran), `bg-surface-raised` (cartes, champs), bordure `border-line`. Pas d'ombre sur les cartes.
+  - Texte : `text-ink` (principal), `text-ink-muted` (secondaire), `text-on-brand` (sur bleu ou bleu nuit).
+  - Marque : `brand-navy` (fonds forts : score, date, bouton sombre), `brand-blue` (actions, liens, onglet actif), `brand-blue-strong` (appuyé), `brand-blue-soft` (pastilles d'icône), `brand-cyan` (décor seulement).
+  - Récompense : `text-reward` (gros chiffres, 24 px et plus), `text-reward-text` (petit texte « +50 pts »), `bg-reward-soft` (encart « Nouveau »).
+  - États : `success`, `success-soft`, `danger`, toujours avec un mot ou une icône.
+  - Rareté (colonne `rarity` 1 à 5) : 1 `common`, 2 `uncommon`, 3 `rare`, 4 `epic`, 5 `legendary`. Étiquette = `bg-rarity-<niveau>-soft text-rarity-<niveau>`, et le texte écrit toujours le niveau et les points (« Rare · 50 pts »).
+- Styles de texte (une classe qui règle police, taille, interligne et graisse) : `typo-display-xl` (nom de l'avion), `typo-display-reward` (« +50 »), `typo-title-lg` (titre d'écran), `typo-title-md` (titre de bloc), `typo-stat` (valeur technique), `typo-body-lg`, `typo-body`, `typo-body-sm`, `typo-label` (boutons), `typo-item-title` (nom dans une liste), `typo-data` (étiquettes, compteurs), `typo-credit` (crédit photo).
+- Polices (chargées par `next/font` dans `app/layout.js`) : `font-display` Barlow Condensed, `font-sans` DM Sans (par défaut), `font-mono` JetBrains Mono.
+- Espacements : grille de 4 px de Tailwind. Marges d'écran `px-6`, intérieur des cartes `p-4`, écart entre cartes `gap-3`.
+- Rayons : `rounded-sm` 12 px (vignettes, encarts), `rounded-md` 14 px (boutons, champs), `rounded-lg` 20 px (cartes), `rounded-full` (étiquettes, filtres, bouton Scanner).
+- Ombres : seulement `shadow-scan` (bouton Scanner de la navigation) et `shadow-tab` (onglet actif).
+- Fond ciel : `<SkyBackground />` sur les écrans principaux (pas sur les fiches avion ni l'écran d'analyse).
+- Icônes : Lucide (SVG copiés depuis lucide.dev, sans ajouter le paquet `lucide-react` sans accord de l'équipe), trait de 2 px. Cibles tactiles de 44 px minimum. Pas d'emoji dans l'interface.
 
 ## Règles importantes
 

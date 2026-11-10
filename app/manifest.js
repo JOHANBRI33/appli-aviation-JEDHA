@@ -1,16 +1,21 @@
 // Manifest PWA généré automatiquement par Next.js à l'URL /manifest.webmanifest
 // Permet d'installer l'appli sur l'écran d'accueil d'un téléphone.
+// Couleurs et icônes : charte graphique Flight Hunter.
 
 export default function manifest() {
   return {
-    name: 'Appli aviation',
-    short_name: 'Aviation',
-    description: 'Identifiez les avions et constituez votre hangar virtuel.',
+    name: 'Flight Hunter',
+    short_name: 'Flight Hunter',
+    description: 'Repère. Identifie. Collectionne. Identifie les avions et constitue ton Hangar.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#f0f9ff', // sky-50
-    theme_color: '#0369a1',      // sky-700
-    // Icônes à ajouter en semaine 2
-    icons: [],
+    background_color: '#f4f7fc', // surface
+    theme_color: '#1e5bff',      // brand-blue
+    icons: [
+      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      // Version avec marge pour les icônes rondes ou découpées d'Android
+      { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
   }
 }
