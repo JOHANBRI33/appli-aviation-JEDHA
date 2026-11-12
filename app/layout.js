@@ -7,6 +7,7 @@
 // et font-mono.
 
 import { Barlow_Condensed, DM_Sans, JetBrains_Mono } from 'next/font/google'
+import BottomNav from '@/components/BottomNav'
 import './globals.css'
 
 // Titres et nom des avions
@@ -47,7 +48,11 @@ export default function RootLayout({ children }) {
       lang="fr"
       className={`${barlowCondensed.variable} ${dmSans.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* Barre du bas : masquée automatiquement sur les écrans plein écran */}
+        <BottomNav />
+      </body>
     </html>
   )
 }
