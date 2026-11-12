@@ -9,14 +9,14 @@
  * Pour ajouter une icône : copier le contenu du <svg> depuis lucide.dev.
  */
 
-function Icon({ children, className = 'h-5 w-5' }) {
+function Icon({ children, className = 'h-5 w-5', strokeWidth = 2 }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -70,5 +70,35 @@ export const CalendarIcon = (props) => (
 export const ChevronRightIcon = (props) => (
   <Icon {...props}>
     <path d="m9 18 6-6-6-6" />
+  </Icon>
+);
+
+// Médaille des badges (Hangar, écran de récompense)
+export const AwardIcon = (props) => (
+  <Icon {...props}>
+    <path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526" />
+    <circle cx="12" cy="8" r="6" />
+  </Icon>
+);
+
+// Avion dessiné à la place d'une photo (le Figma l'utilise avec un trait de 1,5 px)
+export const PlaneIcon = (props) => (
+  <Icon {...props}>
+    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+  </Icon>
+);
+
+export const InfoIcon = (props) => (
+  <Icon {...props}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4" />
+    <path d="M12 8h.01" />
+  </Icon>
+);
+
+export const PlusIcon = (props) => (
+  <Icon {...props}>
+    <path d="M5 12h14" />
+    <path d="M12 5v14" />
   </Icon>
 );

@@ -7,6 +7,7 @@
 // et font-mono.
 
 import { Barlow_Condensed, DM_Sans, JetBrains_Mono } from 'next/font/google'
+import { Suspense } from 'react'
 import BottomNav from '@/components/BottomNav'
 import './globals.css'
 
@@ -50,8 +51,12 @@ export default function RootLayout({ children }) {
     >
       <body className="min-h-full flex flex-col">
         {children}
-        {/* Barre du bas : masquée automatiquement sur les écrans plein écran */}
-        <BottomNav />
+        {/* Barre du bas : masquée automatiquement sur les écrans plein écran.
+            Suspense : BottomNav lit l'URL (usePathname), connue seulement au
+            moment de la requête sur les routes dynamiques comme /avions/[id] */}
+        <Suspense fallback={null}>
+          <BottomNav />
+        </Suspense>
       </body>
     </html>
   )
