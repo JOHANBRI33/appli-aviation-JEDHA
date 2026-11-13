@@ -2,27 +2,26 @@
  * app/hangar/page.js — Server Component
  *
  * Écran « Mon Hangar » (écrans 07 et 08 du Figma « Écrans MVP ») :
- *   1. score : points, avions vus en vrai, badges obtenus
+ *   1. score : points, avions vus en vrai, niveaux de badge obtenus
  *   2. progression du catalogue (modèles différents dans le Hangar / catalogue)
- *   3. rangée des 6 badges (obtenus en couleur, verrouillés en gris pointillé)
+ *   3. « Mes badges par rareté » : un badge ailé par niveau (Bronze → Légendaire)
+ *      et le nombre d'avions vus en vrai de ce niveau ; estompé si aucun
  *   4. onglets « Vus en vrai » / « Collection » et grille de vignettes
  *      (composant client HangarTabs)
  *
  * Le nom, le constructeur et la rareté des avions viennent de la table
- * `aircraft`. Les captures et les badges sont des DONNÉES D'EXEMPLE
- * (lib/hangar-exemple.js) tant que les tables `captures` et `user_badges`
- * n'existent pas.
+ * `aircraft`. Les captures sont des DONNÉES D'EXEMPLE (lib/hangar-exemple.js)
+ * tant que la table `captures` n'existe pas. Les badges se déduisent de la
+ * rareté des avions vus en vrai : pas de table à part.
  */
 
 import { Suspense } from 'react';
 import { cacheLife } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import SkyBackground from '@/components/SkyBackground';
-import { AwardIcon } from '@/components/icons';
-import { pointsForRarity } from '@/lib/points';
-import {
-  EXAMPLE_CAPTURES, EXAMPLE_COLLECTION, BADGES, EXAMPLE_EARNED_BADGES,
-} from '@/lib/hangar-exemple';
+import RarityBadge from '@/components/RarityBadge';
+import { pointsForRarity, RARITY_LEVELS } from '@/lib/points';
+import { EXAMPLE_CAPTURES, EXAMPLE_COLLECTION } from '@/lib/hangar-exemple';
 import HangarTabs from './HangarTabs';
 
 export const metadata = { title: 'Mon Hangar — Flight Hunter' };
@@ -79,17 +78,22 @@ async function HangarContent() {
   // Modèles différents dans le Hangar, vus en vrai ou en collection
   const modelsOwned = new Set([...seen, ...collection].map(aircraft => aircraft.id)).size;
 
-  const earned = new Set(EXAMPLE_EARNED_BADGES);
+  // Nombre d'avions vus en vrai par niveau de rareté (1 à 5)
+  const countsByRarity = Object.fromEntries(Object.keys(RARITY_LEVELS).map(level => [level, 0]));
+  for (const aircraft of seen) {
+    if (aircraft.rarity in countsByRarity) countsByRarity[aircraft.rarity] += 1;
+  }
+  const levelsEarned = Object.values(countsByRarity).filter(count => count > 0).length;
 
   return (
     <div className="flex flex-col gap-4.5">
       <p className="typo-credit text-ink-muted">
-        Données d’exemple : tes captures et tes badges ne sont pas encore enregistrés.
+        Données d’exemple : tes captures ne sont pas encore enregistrées.
       </p>
 
-      <Score points={points} seenCount={seen.length} badgesEarned={earned.size} badgesTotal={BADGES.length} />
+      <Score points={points} seenCount={seen.length} levelsEarned={levelsEarned} levelsTotal={Object.keys(RARITY_LEVELS).length} />
       <CatalogueProgress owned={modelsOwned} total={catalogue.length} />
-      <Badges earned={earned} />
+      <BadgesByRarity counts={countsByRarity} />
       <HangarTabs seen={seen} collection={collection} />
     </div>
   );
@@ -99,11 +103,11 @@ async function HangarContent() {
 
 const numberFr = new Intl.NumberFormat('fr-FR');
 
-function Score({ points, seenCount, badgesEarned, badgesTotal }) {
+function Score({ points, seenCount, levelsEarned, levelsTotal }) {
   const items = [
     { value: numberFr.format(points),            label: 'points' },
     { value: seenCount,                          label: 'vus en vrai' },
-    { value: `${badgesEarned} / ${badgesTotal}`, label: 'badges' },
+    { value: `${levelsEarned} / ${levelsTotal}`, label: 'badges' },
   ];
 
   return (
@@ -143,24 +147,21 @@ function CatalogueProgress({ owned, total }) {
   );
 }
 
-function Badges({ earned }) {
+function BadgesByRarity({ counts }) {
   return (
     <section className="flex flex-col gap-2.5">
-      <h2 className="typo-title-md text-ink">Mes badges</h2>
+      <h2 className="typo-title-md text-ink">Mes badges par rareté</h2>
       <ul className="flex justify-between">
-        {BADGES.map(badge => {
-          const isEarned = earned.has(badge.code);
+        {Object.entries(RARITY_LEVELS).map(([rarity, level]) => {
+          const count = counts[rarity];
           return (
-            <li
-              key={badge.code}
-              title={`${badge.name} : ${badge.description}`}
-              className={`flex h-12 w-12 items-center justify-center rounded-full
-                          ${isEarned ? badge.color : 'border-[1.5px] border-dashed border-ink-muted/40 bg-line text-ink-muted/50'}`}
-            >
-              <AwardIcon className="h-6 w-6" />
-              {/* Le nom et l'état sont lus par le lecteur d'écran (la couleur seule ne suffit pas) */}
+            <li key={rarity} className="flex flex-col items-center">
+              <RarityBadge rarity={Number(rarity)} width={60} muted={count === 0} decorative />
+              <span className="font-display text-[22px] leading-5.5 font-bold text-ink">×{count}</span>
+              <span className="font-mono text-[9px] font-medium tracking-wide text-ink-muted uppercase">{level.label}</span>
+              {/* Phrase complète pour le lecteur d'écran */}
               <span className="sr-only">
-                {badge.name} : {isEarned ? 'obtenu' : 'verrouillé'} ({badge.description})
+                {count} avion{count > 1 ? 's' : ''} {level.label} vu{count > 1 ? 's' : ''} en vrai
               </span>
             </li>
           );

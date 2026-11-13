@@ -42,17 +42,18 @@
   --color-success-soft: #e2f1e8;
   --color-danger: #b42318;
 
-  /* Rareté : texte et point en rarity-xxx, fond en rarity-xxx-soft */
-  --color-rarity-common: #555f72;
-  --color-rarity-common-soft: #eceef2;
-  --color-rarity-uncommon: #17703d;
-  --color-rarity-uncommon-soft: #e2f1e8;
-  --color-rarity-rare: #1747d6;
-  --color-rarity-rare-soft: #e3ecff;
-  --color-rarity-epic: #6b2fc4;
-  --color-rarity-epic-soft: #eee6fa;
-  --color-rarity-legendary: #8a5a00;
-  --color-rarity-legendary-soft: #f8eed6;
+  /* Rareté (colonne rarity, de 1 à 5) : texte et point en rarity-xxx, fond en rarity-xxx-soft.
+     Chaque niveau a aussi son badge ailé dans public/badges/ (composant RarityBadge). */
+  --color-rarity-bronze: #8a4b1f;          /* 1 · Bronze */
+  --color-rarity-bronze-soft: #f5e6d8;
+  --color-rarity-argent: #555f72;          /* 2 · Argent */
+  --color-rarity-argent-soft: #eceef2;
+  --color-rarity-or: #8a5a00;              /* 3 · Or */
+  --color-rarity-or-soft: #f8eed6;
+  --color-rarity-platine: #1f5f7a;         /* 4 · Platine */
+  --color-rarity-platine-soft: #e0f1f8;
+  --color-rarity-legendaire: #6b2fc4;      /* 5 · Légendaire */
+  --color-rarity-legendaire-soft: #eee6fa;
 
   --color-focus: #1e5bff;             /* anneau de focus clavier */
 
