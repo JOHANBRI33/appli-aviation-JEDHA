@@ -5,9 +5,9 @@
  * « Écrans MVP »), utilisée dans la grille de 2 colonnes de app/hangar.
  *
  * Deux modes :
- *   - « seen »       : avion photographié → fond bleu, étiquette de rareté et points
+ *   - « seen »       : avion photographié → fond bleu, badge et étiquette de rareté
  *   - « collection » : ajouté depuis la recherche → fond gris, bordure en
- *                      pointillés, « Collection · 0 pt »
+ *                      pointillés, badge estompé, « Collection · 0 pt »
  *
  * La zone photo montre l'avion dessiné, comme dans le Figma.
  * TODO : afficher la photo de l'utilisateur (captures.photo_path) en mode « seen ».
@@ -20,6 +20,7 @@
 
 import Link from 'next/link';
 import RarityTag from '@/components/RarityTag';
+import RarityBadge from '@/components/RarityBadge';
 import { PlaneIcon } from '@/components/icons';
 
 export default function HangarTile({ aircraft, mode, href }) {
@@ -31,12 +32,19 @@ export default function HangarTile({ aircraft, mode, href }) {
       className={`flex flex-col gap-2 overflow-hidden rounded-lg bg-surface-raised pb-3
                   ${seen ? 'border border-line' : 'border-[1.5px] border-dashed border-line'}`}
     >
-      {/* Zone photo */}
+      {/* Zone photo, avec le badge de rareté dans le coin (estompé en collection) */}
       <div
-        className={`flex h-26 items-center justify-center text-on-brand
+        className={`relative flex h-26 items-center justify-center text-on-brand
                     ${seen ? 'bg-linear-to-b from-brand-blue to-brand-blue-soft' : 'bg-linear-to-b from-line to-surface'}`}
       >
         <PlaneIcon className="h-11.5 w-11.5" strokeWidth={1.5} />
+        <RarityBadge
+          rarity={aircraft.rarity}
+          width={68}
+          muted={!seen}
+          decorative={seen}
+          className="absolute top-0.5 right-0.5"
+        />
       </div>
 
       {/* Nom, constructeur, rareté */}

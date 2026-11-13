@@ -2,7 +2,7 @@
  * components/RarityTag.js
  *
  * Étiquette de rareté (composant « Étiquette rareté » du Figma « Écrans MVP ») :
- * un point de couleur, le niveau et les points, par ex. « RARE · 50 PTS ».
+ * un point de couleur, le niveau et les points, par ex. « OR · 50 PTS ».
  * Le niveau est toujours écrit en toutes lettres : la couleur seule ne suffit pas.
  *
  * Props :
@@ -13,11 +13,11 @@ import { RARITY_LEVELS } from '@/lib/points';
 
 // Couleurs de chaque niveau, écrites en entier pour que Tailwind les détecte
 const COLORS = {
-  1: 'bg-rarity-common-soft text-rarity-common',
-  2: 'bg-rarity-uncommon-soft text-rarity-uncommon',
-  3: 'bg-rarity-rare-soft text-rarity-rare',
-  4: 'bg-rarity-epic-soft text-rarity-epic',          // « Très rare »
-  5: 'bg-rarity-legendary-soft text-rarity-legendary',
+  1: 'bg-rarity-bronze-soft text-rarity-bronze',
+  2: 'bg-rarity-argent-soft text-rarity-argent',
+  3: 'bg-rarity-or-soft text-rarity-or',
+  4: 'bg-rarity-platine-soft text-rarity-platine',
+  5: 'bg-rarity-legendaire-soft text-rarity-legendaire',
 };
 
 export default function RarityTag({ rarity }) {

@@ -3,7 +3,7 @@
 ## Le projet
 
 Application web mobile (PWA) pour passionnés d'aviation.
-Boucle du MVP : l'utilisateur photographie un avion → une IA de vision identifie son type → la fiche s'affiche → l'avion s'ajoute à « Mon Hangar » → l'utilisateur gagne des points selon la rareté et débloque des badges.
+Boucle du MVP : l'utilisateur photographie un avion → une IA de vision identifie son type → la fiche s'affiche → l'avion s'ajoute à « Mon Hangar » → l'utilisateur gagne des points et le badge de la rareté de l'avion (Bronze, Argent, Or, Platine, Légendaire).
 
 Projet de formation : 3 personnes, MVP livré en 6 semaines, environ 180 h au total.
 Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que beaucoup de fonctionnalités.
@@ -42,7 +42,9 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - `public/` : logo (`logo-flight-hunter.png`), icônes de l'appli (`icons/`), nuages du fond ciel (`sky-clouds.svg`)
 - `lib/supabase/` : clients Supabase (navigateur et serveur)
 - `lib/identification.js` : appel à Gemini + chargement du catalogue depuis Supabase
-- `lib/points` : calcul des points et attribution des badges *(à créer)*
+- `lib/points.js` : barème de la rareté (niveau, points, badge)
+- `components/RarityTag.js` et `components/RarityBadge.js` : étiquette et badge ailé de rareté
+- `public/badges/` : les 5 badges ailés en SVG (bronze, argent, or, platine, legendaire)
 - `supabase/migrations/` : schéma de la base, versionné
   - `001_aircraft.sql` : table aircraft, RLS
 - `supabase/seed/` : données initiales
@@ -86,8 +88,8 @@ RLS : lecture publique sur `visible = true` ; aucune écriture depuis l'appli.
 
 - `profiles` : id (= auth), username, points
 - `captures` : id, user_id, aircraft_id, photo_path, confidence, created_at
-- `badges` : id, code, name, description, rule
-- `user_badges` : user_id, badge_id, earned_at
+
+Les badges se déduisent de la rareté (`aircraft.rarity`) des avions vus en vrai : pas de table `badges`.
 
 ## Conventions
 
@@ -108,7 +110,7 @@ La référence est la charte « Flight Hunter » et le Figma « Appli aviation �
   - Marque : `brand-navy` (fonds forts : score, date, bouton sombre), `brand-blue` (actions, liens, onglet actif), `brand-blue-strong` (appuyé), `brand-blue-soft` (pastilles d'icône), `brand-cyan` (décor seulement).
   - Récompense : `text-reward` (gros chiffres, 24 px et plus), `text-reward-text` (petit texte « +50 pts »), `bg-reward-soft` (encart « Nouveau »).
   - États : `success`, `success-soft`, `danger`, toujours avec un mot ou une icône.
-  - Rareté (colonne `rarity` 1 à 5) : 1 `common`, 2 `uncommon`, 3 `rare`, 4 `epic`, 5 `legendary`. Étiquette = `bg-rarity-<niveau>-soft text-rarity-<niveau>`, et le texte écrit toujours le niveau et les points (« Rare · 50 pts »).
+  - Rareté (colonne `rarity` 1 à 5) : 1 `bronze` (10 pts), 2 `argent` (25), 3 `or` (50), 4 `platine` (100), 5 `legendaire` (200), définis dans `lib/points.js`. Étiquette = `<RarityTag rarity={…} />` (`bg-rarity-<niveau>-soft text-rarity-<niveau>`), le texte écrit toujours le niveau et les points (« Or · 50 pts »). Badge ailé = `<RarityBadge rarity={…} width={…} />`, sur la fiche, les vignettes et le Hangar.
 - Styles de texte (une classe qui règle police, taille, interligne et graisse) : `typo-display-xl` (nom de l'avion), `typo-display-reward` (« +50 »), `typo-title-lg` (titre d'écran), `typo-title-md` (titre de bloc), `typo-stat` (valeur technique), `typo-body-lg`, `typo-body`, `typo-body-sm`, `typo-label` (boutons), `typo-item-title` (nom dans une liste), `typo-data` (étiquettes, compteurs), `typo-credit` (crédit photo).
 - Polices (chargées par `next/font` dans `app/layout.js`) : `font-display` Barlow Condensed, `font-sans` DM Sans (par défaut), `font-mono` JetBrains Mono.
 - Espacements : grille de 4 px de Tailwind. Marges d'écran `px-6`, intérieur des cartes `p-4`, écart entre cartes `gap-3`.

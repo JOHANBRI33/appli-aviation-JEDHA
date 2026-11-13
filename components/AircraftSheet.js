@@ -2,8 +2,8 @@
  * components/AircraftSheet.js
  *
  * Fiche d'un avion (composant « Fiche avion · contenu » du Figma « Écrans MVP »,
- * repris par les écrans 05, 09 et 11) : photo Commons créditée, rareté, nom,
- * constructeur, caractéristiques, histoire et sources.
+ * repris par les écrans 05, 09 et 11) : photo Commons créditée, rareté (étiquette
+ * et badge ailé), nom, constructeur, caractéristiques, histoire et sources.
  *
  * Les actions du bas changent selon l'écran (après un scan, depuis le Hangar,
  * depuis la recherche) : elles sont passées en `children` et affichées dans
@@ -21,6 +21,7 @@
 
 import Link from 'next/link';
 import RarityTag from '@/components/RarityTag';
+import RarityBadge from '@/components/RarityBadge';
 
 // Libellés des catégories (colonne aircraft.category)
 const CATEGORY_LABELS = {
@@ -80,17 +81,21 @@ export default function AircraftSheet({ fiche, backHref, onBack, children }) {
       <SheetPhoto fiche={fiche} />
 
       <div className="flex flex-col gap-4.5 px-6 pt-5 pb-2">
-        {/* En-tête : rareté, nom, constructeur */}
-        <header className="flex flex-col gap-1.5">
-          {fiche.rarity && (
-            <div>
-              <RarityTag rarity={fiche.rarity} />
-            </div>
-          )}
-          <h1 className="typo-display-xl text-ink">{fiche.name}</h1>
-          {fiche.manufacturer && (
-            <p className="text-[15px] text-ink-muted">{fiche.manufacturer}</p>
-          )}
+        {/* En-tête : rareté, nom, constructeur, et badge de rareté à droite */}
+        <header className="flex items-start gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            {fiche.rarity && (
+              <div>
+                <RarityTag rarity={fiche.rarity} />
+              </div>
+            )}
+            <h1 className="typo-display-xl text-ink">{fiche.name}</h1>
+            {fiche.manufacturer && (
+              <p className="text-[15px] text-ink-muted">{fiche.manufacturer}</p>
+            )}
+          </div>
+          {/* Le niveau est déjà écrit dans l'étiquette : badge décoratif */}
+          <RarityBadge rarity={fiche.rarity} width={104} decorative className="-mt-2" />
         </header>
 
         {/* Caractéristiques : grille de 2 colonnes */}
