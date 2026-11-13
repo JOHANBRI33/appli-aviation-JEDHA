@@ -1,7 +1,8 @@
 /**
  * app/api/identifier/route.js
  *
- * Route serveur : reçoit une image et retourne la reconnaissance Gemini.
+ * Route serveur : reçoit une image, Gemini identifie librement l'avion
+ * (sans catalogue), puis la fiche est récupérée sur Wikidata + Commons.
  *
  * ⚠️  ACCÈS RESTREINT AU DÉVELOPPEMENT
  * Cette route appelle l'API Gemini et consomme notre quota.
@@ -12,8 +13,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { loadCatalogue, identifyAircraft, THINKING_LEVEL, SERVICE_OVERLOADED, UNKNOWN_ID } from '@/lib/identification';
+import { identifyAircraftFree, THINKING_LEVEL, SERVICE_OVERLOADED, UNKNOWN_ID } from '@/lib/identification';
+import { fetchAircraftFiche } from '@/lib/wikidata';
 
 // Types MIME acceptés (le navigateur peut envoyer du HEIC mais ne peut pas
 // toujours l'afficher — la validation côté serveur reste nécessaire)
@@ -87,11 +88,9 @@ export async function POST(request) {
     );
   }
 
-  const catalogue = await loadCatalogue();
-
   let result;
   try {
-    result = await identifyAircraft(imageBase64, imageFile.type, catalogue, thinkingLevel);
+    result = await identifyAircraftFree(imageBase64, imageFile.type, thinkingLevel);
   } catch (err) {
     const msg = err.message ?? 'Erreur inconnue.';
 
@@ -114,59 +113,57 @@ export async function POST(request) {
     );
   }
 
-  const duration_ms = Date.now() - startMs;
-  console.log(`/api/identifier: réponse de ${result.model_used} en ${duration_ms} ms (${result.attempts} tentative(s))`);
+  const gemini_ms = Date.now() - startMs;
+  console.log(`/api/identifier: réponse de ${result.model_used} en ${gemini_ms} ms (${result.attempts} tentative(s))`);
 
-  // Nom de l'avion reconnu (depuis le catalogue déjà chargé)
-  const matched = catalogue.find(a => a.id === result.aircraft_id);
-  const aircraft_name = result.aircraft_id === UNKNOWN_ID
-    ? 'Avion non reconnu (hors catalogue ?)'
-    : matched?.name ?? result.aircraft_id;
-
-  // ── Fiches Supabase ───────────────────────────────────────────────────────
-  // Récupère la fiche complète de l'avion reconnu + les 3 suggestions
-  // pour les afficher dans la page labo sans appel supplémentaire côté client.
-  // Si Supabase est indisponible ou la table vide, fichesById = {} et la carte
-  // n'est simplement pas affichée — la reconnaissance reste fonctionnelle.
-  let fichesById = {};
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const allIds = [...new Set([result.aircraft_id, ...(result.suggestions ?? [])])];
-
-      const { data: fiches } = await supabase
-        .from('aircraft')
-        .select([
-          'id', 'name', 'manufacturer', 'category', 'description',
-          'first_flight', 'max_speed_kmh', 'length_m', 'wingspan_m',
-          'units_built', 'rarity',
-          'image_url', 'image_author', 'image_license',
-          'image_license_url', 'image_source_url',
-        ].join(', '))
-        .in('id', allIds);
-
-      if (fiches) {
-        fichesById = Object.fromEntries(fiches.map(f => [f.id, f]));
-      }
-    }
-  } catch (err) {
-    // Supabase injoignable — les fiches seront absentes, l'appli reste utilisable
-    console.warn('/api/identifier: fiches Supabase indisponibles :', err.message);
+  // Aucun avion visible sur la photo : pas de recherche Wikidata
+  if (result.aircraft_name === UNKNOWN_ID) {
+    return NextResponse.json({
+      indices:       result.indices,
+      aircraft_id:   UNKNOWN_ID,
+      aircraft_name: 'Avion non reconnu',
+      confidence:    result.confidence,
+      suggestions:   [],
+      fichesById:    {},
+      duration_ms:   gemini_ms,
+      model_used:    result.model_used,
+      attempts:      result.attempts,
+    });
   }
 
-  // La clé API n'apparaît jamais dans la réponse (elle est dans result côté lib seulement)
+  // ── Fiche Wikidata ────────────────────────────────────────────────────────
+  // Seulement pour l'avion choisi par Gemini : Wikidata bloque les appels
+  // trop nombreux. Les suggestions restent de simples noms.
+  let fiche = null;
+  try {
+    fiche = await fetchAircraftFiche(result.aircraft_name, result.category);
+  } catch (err) {
+    // Wikidata injoignable : on renvoie quand même le nom donné par Gemini
+    console.warn(`/api/identifier: fiche Wikidata indisponible pour « ${result.aircraft_name} » :`, err.message);
+  }
+
+  // L'avion est désigné par son numéro Wikidata (ex. Q6475) s'il a été
+  // trouvé, sinon par le nom donné par Gemini.
+  const aircraft_id = fiche?.id ?? result.aircraft_name;
+  const fichesById = fiche ? { [fiche.id]: fiche } : {};
+  const suggestions = [...new Set([
+    aircraft_id,
+    ...result.suggestions.filter(name => name !== result.aircraft_name),
+  ])].slice(0, 3);
+
+  const duration_ms = Date.now() - startMs;
+  console.log(`/api/identifier: fiche Wikidata en ${duration_ms - gemini_ms} ms`);
+
+  // La clé API n'apparaît jamais dans la réponse (elle reste dans lib/identification.js)
   return NextResponse.json({
-    indices:      result.indices,
-    aircraft_id:  result.aircraft_id,
-    aircraft_name,
-    confidence:   result.confidence,
-    suggestions:  result.suggestions,
-    fichesById,   // { aircraft_id: fiche, ... } — peut être vide si Supabase indisponible
+    indices:       result.indices,
+    aircraft_id,
+    aircraft_name: fiche?.name ?? result.aircraft_name,
+    confidence:    result.confidence,
+    suggestions,
+    fichesById,    // { id: fiche } — vide si Wikidata n'a rien trouvé
     duration_ms,
-    model_used:   result.model_used,
-    attempts:     result.attempts,
+    model_used:    result.model_used,
+    attempts:      result.attempts,
   });
 }
