@@ -35,13 +35,14 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
   - `app/photo/` : prise de photo et résultat *(à créer)*
   - `app/hangar/` : collection de l'utilisateur *(à créer)*
   - `app/classement/` : classement *(à créer)*
-  - `app/api/identifier/` : route serveur de reconnaissance (Gemini)
+  - `app/api/identifier/` : route serveur de reconnaissance (Gemini + fiche Wikidata)
 - `components/` : composants réutilisables
   - `components/AircraftCard.js` : carte fiche avion (photo + données techniques)
   - `components/SkyBackground.js` : fond ciel avec nuages des écrans principaux
 - `public/` : logo (`logo-flight-hunter.png`), icônes de l'appli (`icons/`), nuages du fond ciel (`sky-clouds.svg`)
 - `lib/supabase/` : clients Supabase (navigateur et serveur)
-- `lib/identification.js` : appel à Gemini + chargement du catalogue depuis Supabase
+- `lib/identification.js` : appel à Gemini. `identifyAircraftFree` (identification libre, utilisée par l'appli) ; `identifyAircraft` + `loadCatalogue` (mode catalogue, gardé pour `npm run test:vision`)
+- `lib/wikidata.js` : fiche d'un avion depuis son nom (recherche Wikidata, données techniques, photo Commons, rareté), gardée en mémoire 24 h
 - `lib/points.js` : barème de la rareté (niveau, points, badge)
 - `components/RarityTag.js` et `components/RarityBadge.js` : étiquette et badge ailé de rareté
 - `public/badges/` : les 5 badges ailés en SVG (bronze, argent, or, platine, legendaire)
@@ -49,8 +50,8 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
   - `001_aircraft.sql` : table aircraft, RLS
 - `supabase/seed/` : données initiales
   - `aircraft.sql` : 15 avions générés par `npm run import:catalogue`
-- `scripts/test-vision/` : test de reconnaissance en batch
-  - `catalogue.json` : catalogue de référence (fallback si Supabase vide)
+- `scripts/test-vision/` : test de reconnaissance en batch (mode catalogue)
+  - `catalogue.json` : catalogue de référence du test (fallback si Supabase vide)
 - `scripts/import-catalogue/` : import Wikidata + Wikimedia Commons
   - `run.js` : script principal
   - `wikidata-ids.json` : correspondance id catalogue → Wikidata (à corriger si besoin)
@@ -127,10 +128,12 @@ La référence est la charte « Flight Hunter » et le Figma « Appli aviation �
   - `VISION_API_KEY` (serveur uniquement)
 - L'IA de vision n'est appelée que depuis `app/api/`, jamais depuis le navigateur.
 - Chaque photo est réduite (environ 1024 px de côté) avant envoi.
-- Reconnaissance : envoyer la photo et la liste des noms du catalogue ; demander une réponse JSON du type `{ aircraft_id, confidence, suggestions }`. Si la confiance est faible, proposer 3 suggestions au lieu d'une réponse.
+- Reconnaissance (décision d'équipe du 13/11/2026) : identification libre, sans catalogue ni Supabase. Gemini reçoit la photo seule et renvoie en JSON `{ indices, aircraft_name, category, confidence, suggestions }`, le nom étant celui de la page Wikipédia anglaise (« Boeing 747 »). La route cherche ensuite la fiche de cet avion sur Wikidata (`lib/wikidata.js`). Si la confiance est faible, proposer les 3 suggestions au lieu d'une réponse.
+- L'avion reconnu est désigné par son numéro Wikidata (`Q179` pour le Boeing 747), ou par le nom donné par Gemini si Wikidata ne le trouve pas. La fiche renvoyée a les mêmes champs que la table `aircraft`, et sa rareté suit la même règle (`units_built`).
+- Wikidata bloque les appels trop nombreux : une seule fiche cherchée par photo (celle de l'avion reconnu), jamais de recherches en rafale.
 - Row Level Security activée sur toutes les tables Supabase : un utilisateur ne lit et n'écrit que ses propres captures. La table `aircraft` est en lecture publique (anon + authenticated).
 - Photos des fiches : uniquement Wikimedia Commons, avec auteur et licence affichés sous chaque image. Jamais de photos Planespotters, JetPhotos ou Airliners.net.
-- `loadCatalogue()` dans `lib/identification.js` lit d'abord Supabase (`id, name, manufacturer, recognition_hints`) ; si indisponible, bascule sur `scripts/test-vision/catalogue.json` avec un `console.warn`.
+- `loadCatalogue()` dans `lib/identification.js` (utilisé seulement par `npm run test:vision`) lit d'abord Supabase (`id, name, manufacturer, recognition_hints`) ; si indisponible, bascule sur `scripts/test-vision/catalogue.json` avec un `console.warn`.
 
 ## Façon de travailler
 
