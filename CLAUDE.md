@@ -38,15 +38,16 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
   - `app/calendrier/` : meetings et salons de la saison, filtrables par mois (écran 12)
   - `app/hangar/carte/[id]/` : carte à collectionner d'un avion vu en vrai (écrans 13 et 13b)
   - `app/classement/` : classement *(à créer)*
-  - `app/api/identifier/` : route serveur de reconnaissance (Gemini + fiche Wikidata)
+  - `app/api/identifier/` : route serveur de reconnaissance (Gemini, puis fiche du catalogue Supabase ou de Wikidata)
 - `components/` : composants réutilisables
   - `components/AircraftCard.js` : carte fiche avion (photo + données techniques)
   - `components/SkyBackground.js` : fond ciel avec nuages des écrans principaux
   - `components/CollectibleCard.js` : carte à collectionner (recto, verso, retournement), cadre en métal selon la rareté
 - `public/` : logo (`logo-flight-hunter.png`), icônes de l'appli (`icons/`), nuages du fond ciel (`sky-clouds.svg`)
-- `lib/supabase/` : clients Supabase (navigateur et serveur)
+- `lib/supabase/` : clients Supabase (navigateur, serveur, et `admin.js` avec la clé service_role, serveur uniquement)
+- `lib/catalogue.js` : recherche d'un avion dans la table `aircraft` par ses alias, ajout automatique d'un avion trouvé sur Wikidata
 - `lib/identification.js` : appel à Gemini. `identifyAircraftFree` (identification libre, utilisée par l'appli) ; `identifyAircraft` + `loadCatalogue` (mode catalogue, gardé pour `npm run test:vision`)
-- `lib/wikidata.js` : fiche d'un avion depuis son nom (recherche Wikidata, données techniques, photo Commons, rareté), gardée en mémoire 24 h
+- `lib/wikidata.js` : fiche d'un avion depuis son nom (recherche Wikidata, données techniques, photo Commons, résumé Wikipédia, rareté), gardée en mémoire 24 h ; `parseAircraft` et `toAircraftRow` sont partagés avec le script d'import
 - `lib/evenements.js` : liste des meetings de la saison, écrite à la main et vérifiée auprès des organisateurs (pas de source automatique)
 - `lib/points.js` : barème de la rareté (niveau, points, badge)
 - `components/RarityTag.js` et `components/RarityBadge.js` : étiquette et badge ailé de rareté
@@ -100,7 +101,7 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 | `visible` | boolean | `true` par défaut — masque sans supprimer |
 | `created_at` / `updated_at` | timestamptz | automatiques |
 
-RLS : lecture publique sur `visible = true` ; aucune écriture depuis l'appli.
+RLS : lecture publique sur `visible = true` ; aucune écriture pour anon / authenticated. Seule la route serveur `/api/identifier` ajoute des avions, avec la clé service_role et `verified = false` (décision d'équipe du 16/11/2026).
 
 ### Tables à créer
 
@@ -141,12 +142,12 @@ La référence est la charte « Flight Hunter » et le Figma « Appli aviation �
 
 - Aucune clé dans le code. Les secrets sont dans `.env.local`, jamais commité :
   - `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` (publiques)
-  - `SUPABASE_SERVICE_ROLE_KEY` (serveur uniquement)
+  - `SUPABASE_SERVICE_ROLE_KEY` (serveur uniquement : ajout automatique d'avions au catalogue, à déclarer aussi sur Vercel)
   - `VISION_API_KEY` (serveur uniquement)
 - L'IA de vision n'est appelée que depuis `app/api/`, jamais depuis le navigateur.
 - Chaque photo est réduite (environ 1024 px de côté) avant envoi.
-- Reconnaissance (décision d'équipe du 13/11/2026) : identification libre, sans catalogue ni Supabase. Gemini reçoit la photo seule et renvoie en JSON `{ indices, aircraft_name, category, confidence, suggestions }`, le nom étant celui de la page Wikipédia anglaise (« Boeing 747 »). La route cherche ensuite la fiche de cet avion sur Wikidata (`lib/wikidata.js`). Si la confiance est faible, proposer les 3 suggestions au lieu d'une réponse.
-- L'avion reconnu est désigné par son numéro Wikidata (`Q179` pour le Boeing 747), ou par le nom donné par Gemini si Wikidata ne le trouve pas. La fiche renvoyée a les mêmes champs que la table `aircraft`, et sa rareté suit la même règle (`units_built`). Nombre d'exemplaires inconnu → rareté 3 (Or), décision d'équipe du 16/11/2026.
+- Reconnaissance (décision d'équipe du 13/11/2026) : identification libre, sans catalogue ni Supabase. Gemini reçoit la photo seule et renvoie en JSON `{ indices, aircraft_name, category, confidence, suggestions }`, le nom étant celui de la page Wikipédia anglaise (« Boeing 747 »). La route cherche ensuite la fiche dans la table `aircraft` (colonne `aliases`, `lib/catalogue.js`), pour l'avion choisi et ses suggestions ; sinon sur Wikidata (`lib/wikidata.js`), et l'avion est alors ajouté au catalogue avec `verified = false` si la confiance est d'au moins 0,7. Si la confiance est faible, proposer les 3 suggestions au lieu d'une réponse.
+- L'avion reconnu est désigné par son identifiant du catalogue (`b747`), sinon par son numéro Wikidata (`Q179`, si l'ajout au catalogue n'a pas eu lieu), sinon par le nom donné par Gemini. La fiche renvoyée a les mêmes champs que la table `aircraft`, et sa rareté suit la même règle (`units_built`). Nombre d'exemplaires inconnu → rareté 3 (Or), décision d'équipe du 16/11/2026.
 - Wikidata bloque les appels trop nombreux : une seule fiche cherchée par photo (celle de l'avion reconnu), jamais de recherches en rafale.
 - Row Level Security activée sur toutes les tables Supabase : un utilisateur ne lit et n'écrit que ses propres captures. La table `aircraft` est en lecture publique (anon + authenticated).
 - Photos des fiches : uniquement Wikimedia Commons, avec auteur et licence affichés sous chaque image. Jamais de photos Planespotters, JetPhotos ou Airliners.net.

@@ -21,7 +21,7 @@
 
 import {
   fetchEntities, fetchLabels, fetchCommonsImagesInfo, fetchWikipediaIntros,
-  linkedIds, parseAircraft, shortSummary, WIKIPEDIA_TEXT_LICENSE,
+  linkedIds, parseAircraft, toAircraftRow, WIKIPEDIA_TEXT_LICENSE,
 } from '../../lib/wikidata.js';
 import { fetchCached, readJson, writeText } from './outils.js';
 import { RARITY_LEVELS } from '../../lib/points.js';
@@ -70,45 +70,6 @@ async function collect(avions) {
   const intros = await fetchCached('wikipedia-fr', frTitles, 20, titles => fetchWikipediaIntros(titles, 'fr'));
 
   return { parsed, images, intros };
-}
-
-/** Assemble la ligne SQL d'un avion. */
-function buildRow(avion, a, image, intro, hints) {
-  const summary = shortSummary(intro);
-  return {
-    id:                avion.id,
-    name:              a.name ?? avion.name,
-    manufacturer:      a.manufacturer ?? 'Inconnu',   // colonne NOT NULL
-    category:          avion.category,
-    // Résumé Wikipédia ; sinon la description courte de Wikidata (CC0)
-    description:       summary ?? a.description,
-    recognition_hints: hints ?? null,
-    first_flight:      a.first_flight,
-    max_speed_kmh:     a.max_speed_kmh,
-    length_m:          a.length_m,
-    wingspan_m:        a.wingspan_m,
-    height_m:          a.height_m,
-    range_km:          a.range_km,
-    ceiling_m:         a.ceiling_m,
-    service_entry:     a.service_entry,
-    retirement:        a.retirement,
-    country_of_origin: a.country_of_origin,
-    engines:           a.engines,
-    units_built:       a.units_built,
-    rarity:            a.rarity,
-    image_url:         image?.thumbUrl ?? null,
-    image_author:      image?.author ?? null,
-    image_license:     image?.license ?? null,
-    image_license_url: image?.licenseUrl ?? null,
-    image_source_url:  image?.sourceUrl ?? null,
-    wikidata_id:       a.wikidata_id,
-    enwiki_title:      a.enwiki_title,
-    aliases:           a.aliases,
-    // Lien obligatoire si le résumé vient de Wikipédia (CC BY-SA)
-    wikipedia_url:     summary ? a.wikipedia_fr_url : (a.wikipedia_fr_url ?? a.wikipedia_en_url),
-    sources:           a.sources,
-    verified:          true,
-  };
 }
 
 // ─── SQL ──────────────────────────────────────────────────────────────────────
@@ -261,7 +222,11 @@ async function main() {
       missing.push(`${avion.id} (${avion.wikidata_id}) : introuvable sur Wikidata`);
       continue;
     }
-    rows.push(buildRow(avion, a, images[a.image_file], intros[a.frwiki_title], hintsById[avion.id]));
+    rows.push(toAircraftRow({
+      id: avion.id, category: avion.category, parsed: a,
+      image: images[a.image_file], intro: intros[a.frwiki_title],
+      hints: hintsById[avion.id], verified: true,
+    }));
   }
 
   writeSql(rows);
