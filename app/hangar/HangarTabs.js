@@ -7,9 +7,10 @@
  * (2 colonnes). Seul morceau interactif de l'écran : il garde en mémoire
  * l'onglet choisi (useState).
  *
- * Chaque vignette ouvre la fiche /avions/[id]?depuis=hangar : la fiche
- * affiche alors le bouton retour vers le Hangar et « Ma prise de vue »
- * (écran 09).
+ * Une vignette « Vus en vrai » ouvre la carte à collectionner de l'avion
+ * (/hangar/carte/[id], écran 13), d'où l'on peut aller à la fiche.
+ * Une vignette « Collection » (pas de photo, donc pas de carte) ouvre
+ * directement la fiche /avions/[id]?depuis=hangar (écran 09).
  *
  * Props :
  *   seen        {object[]}  avions photographiés (lignes de aircraft)
@@ -78,7 +79,7 @@ export default function HangarTabs({ seen, collection }) {
               <HangarTile
                 aircraft={aircraft}
                 mode={tab}
-                href={`/avions/${aircraft.id}?depuis=hangar`}
+                href={tab === 'seen' ? `/hangar/carte/${aircraft.id}` : `/avions/${aircraft.id}?depuis=hangar`}
               />
             </li>
           ))}

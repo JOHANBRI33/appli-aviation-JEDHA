@@ -33,12 +33,14 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
   - `app/labo/` : page de test de reconnaissance (dev uniquement)
   - `app/avions/[id]/` : fiche d'un avion *(à créer)*
   - `app/photo/` : prise de photo et résultat *(à créer)*
-  - `app/hangar/` : collection de l'utilisateur *(à créer)*
+  - `app/hangar/` : collection de l'utilisateur
+  - `app/hangar/carte/[id]/` : carte à collectionner d'un avion vu en vrai (écrans 13 et 13b)
   - `app/classement/` : classement *(à créer)*
   - `app/api/identifier/` : route serveur de reconnaissance (Gemini + fiche Wikidata)
 - `components/` : composants réutilisables
   - `components/AircraftCard.js` : carte fiche avion (photo + données techniques)
   - `components/SkyBackground.js` : fond ciel avec nuages des écrans principaux
+  - `components/CollectibleCard.js` : carte à collectionner (recto, verso, retournement), cadre en métal selon la rareté
 - `public/` : logo (`logo-flight-hunter.png`), icônes de l'appli (`icons/`), nuages du fond ciel (`sky-clouds.svg`)
 - `lib/supabase/` : clients Supabase (navigateur et serveur)
 - `lib/identification.js` : appel à Gemini. `identifyAircraftFree` (identification libre, utilisée par l'appli) ; `identifyAircraft` + `loadCatalogue` (mode catalogue, gardé pour `npm run test:vision`)

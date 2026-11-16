@@ -28,7 +28,7 @@ const RIGHT_TABS = [
 ];
 
 // Écrans où la barre n'apparaît pas (début du chemin)
-const HIDDEN_ON = ['/photo', '/avions', '/labo'];
+const HIDDEN_ON = ['/photo', '/avions', '/labo', '/hangar/carte'];
 
 function isActive(pathname, href) {
   return href === '/' ? pathname === '/' : pathname.startsWith(href);
