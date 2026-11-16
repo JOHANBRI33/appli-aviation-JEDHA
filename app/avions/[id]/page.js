@@ -26,7 +26,7 @@ const FICHE_COLUMNS = [
   'first_flight', 'max_speed_kmh', 'length_m', 'wingspan_m',
   'units_built', 'rarity',
   'image_url', 'image_author', 'image_license',
-  'image_license_url', 'image_source_url',
+  'image_license_url', 'image_source_url', 'wikipedia_url',
 ].join(', ');
 
 /** Fiche d'un avion visible, ou null s'il n'existe pas. */

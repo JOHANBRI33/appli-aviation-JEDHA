@@ -1,6 +1,6 @@
 {
-  "_comment": "Correspondance id catalogue → identifiant Wikidata. Corrigez ici si un ID est ambigu ou faux, puis relancez npm run import:catalogue.",
-  "a320":        { "id": "Q18784360", "note": "Airbus A320 (monocouloir)" },
+  "_comment": "Identifiants courts imposés : id de la table aircraft → numéro Wikidata. Ces avions sont toujours importés et gardent leur id (utilisé dans les URL et lib/hangar-exemple.js). Les autres avions reçoivent un id calculé depuis leur titre Wikipédia anglais (ex. boeing-777).",
+  "a320":        { "id": "Q6475",     "note": "famille Airbus A320 (le titre Wikipédia « Airbus A320 » y redirige)" },
   "a321":        { "id": "Q3278675",  "note": "Airbus A321" },
   "b737":        { "id": "Q6387",     "note": "Boeing 737 (famille)" },
   "a380":        { "id": "Q5830",     "note": "Airbus A380" },
