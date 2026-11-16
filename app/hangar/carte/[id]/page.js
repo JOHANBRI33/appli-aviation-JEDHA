@@ -26,7 +26,7 @@ import ShareCardButton from './ShareCardButton';
 const CARD_COLUMNS = [
   'id', 'name', 'manufacturer', 'category', 'description',
   'first_flight', 'max_speed_kmh', 'wingspan_m', 'rarity',
-  'image_url', 'image_author', 'image_license',
+  'image_url', 'image_author', 'image_license', 'wikipedia_url',
 ].join(', ');
 
 /** Client Supabase sans cookies : la table aircraft est en lecture publique. */

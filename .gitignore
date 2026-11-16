@@ -44,3 +44,6 @@ scripts/test-vision/photos/*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cache des appels Wikidata / Commons / Wikipédia du script d import
+scripts/import-catalogue/cache/

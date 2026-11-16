@@ -24,7 +24,8 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - `npm run build` : vérifier que le projet compile avant chaque pull request
 - `npm run lint` : vérifier le style du code
 - `npm run test:vision` : lancer le script de test de reconnaissance (photos dans `scripts/test-vision/photos/`)
-- `npm run import:catalogue` : importer les données Wikidata + photos Commons dans `supabase/seed/aircraft.sql`
+- `npm run import:selection` : étape 1 de l'import, choisit les avions les plus connus sur Wikidata → `scripts/import-catalogue/candidats.json` (à relire par l'équipe)
+- `npm run import:catalogue` : étape 2, génère `supabase/seed/aircraft.sql` (Wikidata + photos Commons + résumés Wikipédia) et le rapport `apercu.md`. Ajouter `-- --rafraichir` pour ignorer le cache
 
 ## Structure des dossiers
 
@@ -52,17 +53,21 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - `public/badges/` : les 5 badges ailés en SVG (bronze, argent, or, platine, legendaire)
 - `supabase/migrations/` : schéma de la base, versionné
   - `001_aircraft.sql` : table aircraft, RLS
+  - `002_aircraft_details.sql` : données techniques en plus, sources, alias, `enwiki_title`, `verified`
 - `supabase/seed/` : données initiales
-  - `aircraft.sql` : 15 avions générés par `npm run import:catalogue`
+  - `aircraft.sql` : 200 avions générés par `npm run import:catalogue` (à exécuter après la migration 002)
 - `scripts/test-vision/` : test de reconnaissance en batch (mode catalogue)
   - `catalogue.json` : catalogue de référence du test (fallback si Supabase vide)
-- `scripts/import-catalogue/` : import Wikidata + Wikimedia Commons
-  - `run.js` : script principal
-  - `wikidata-ids.json` : correspondance id catalogue → Wikidata (à corriger si besoin)
+- `scripts/import-catalogue/` : import Wikidata + Wikimedia Commons + Wikipédia (réutilise `lib/wikidata.js`)
+  - `selection.js` : étape 1, liste et classe les candidats
+  - `candidats.json` : avions retenus (`include`) et catégorie, corrigeables à la main (corrections conservées si on relance)
+  - `run.js` : étape 2, génère le SQL et `apercu.md` (rapport de remplissage)
+  - `wikidata-ids.json` : identifiants courts imposés (`a320`, `rafale`…), toujours importés
+  - `outils.js` : pauses, nouvelles tentatives, cache disque (`cache/`, non versionné)
 
 ## Modèle de données
 
-### Table `aircraft` ✅ créée (`supabase/migrations/001_aircraft.sql`)
+### Table `aircraft` ✅ créée (`supabase/migrations/001_aircraft.sql` + `002_aircraft_details.sql`)
 
 | Colonne | Type | Notes |
 |---|---|---|
@@ -83,7 +88,15 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 | `image_license` | text | ex. `CC BY-SA 4.0` |
 | `image_license_url` | text | lien vers la page de la licence |
 | `image_source_url` | text | lien vers la fiche Commons (crédit obligatoire) |
-| `wikidata_id` | text | ex. `Q5830` |
+| `wikidata_id` | text unique | ex. `Q5830` |
+| `enwiki_title` | text unique | titre Wikipédia anglais, renvoyé par Gemini |
+| `aliases` | text[] | autres noms en minuscules (libellés et alias Wikidata) |
+| `wikipedia_url` | text | article d'où vient `description` (texte CC BY-SA 4.0, lien obligatoire) |
+| `sources` | jsonb | sources citées par Wikidata, par colonne : `{ "units_built": ["https://…"] }` |
+| `height_m`, `range_km`, `ceiling_m` | numeric / integer | hauteur, autonomie, plafond |
+| `service_entry`, `retirement` | date | mise en service, retrait |
+| `country_of_origin`, `engines` | text | pays d'origine, motorisation |
+| `verified` | boolean | `true` = importé et relu ; `false` = ajouté automatiquement après une identification |
 | `visible` | boolean | `true` par défaut — masque sans supprimer |
 | `created_at` / `updated_at` | timestamptz | automatiques |
 

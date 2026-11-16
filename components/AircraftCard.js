@@ -135,6 +135,24 @@ export default function AircraftCard({ fiche }) {
         {fiche.description && (
           <p className="text-sm text-gray-600 mb-3 leading-relaxed">
             {fiche.description}
+            {/* Crédit obligatoire : le résumé vient de Wikipédia (CC BY-SA 4.0) */}
+            {fiche.wikipedia_url && (
+              <span className="typo-credit mt-1 block text-ink-muted">
+                Texte :{' '}
+                <a href={fiche.wikipedia_url} target="_blank" rel="noopener noreferrer" className="underline">
+                  Wikipédia
+                </a>
+                {' · '}
+                <a
+                  href="https://creativecommons.org/licenses/by-sa/4.0/deed.fr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  CC BY-SA 4.0
+                </a>
+              </span>
+            )}
           </p>
         )}
 

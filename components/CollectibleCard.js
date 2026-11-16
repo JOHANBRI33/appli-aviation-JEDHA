@@ -20,7 +20,7 @@
  * Props :
  *   aircraft  {object}  ligne de la table aircraft (name, manufacturer, category,
  *                       description, first_flight, max_speed_kmh, wingspan_m,
- *                       rarity, image_url, image_author, image_license)
+ *                       rarity, image_url, image_author, image_license, wikipedia_url)
  *   capture   {object}  { created_at, place } : la prise de vue
  *   number    {number}  numéro de la carte dans la collection (1, 2, 3…)
  *   total     {number}  nombre d'avions du catalogue
@@ -237,6 +237,10 @@ function Back({ aircraft, capture, theme, numberLabel }) {
         <p className="line-clamp-5 text-[13px] leading-[19px] text-on-brand/90">
           {aircraft.description || 'Son histoire arrive bientôt dans le catalogue.'}
         </p>
+        {/* Crédit obligatoire du résumé Wikipédia (le lien est sur la fiche avion) */}
+        {aircraft.wikipedia_url && (
+          <p className="font-mono text-[10.5px] text-on-brand/65">Texte : Wikipédia · CC BY-SA 4.0</p>
+        )}
       </section>
 
       <section className="flex flex-col gap-1 rounded-[10px] border border-white/20 bg-white/8 px-3 py-2.5">
