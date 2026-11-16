@@ -35,19 +35,19 @@ import { RARITY_LEVELS } from '@/lib/points';
 // ─── Métal de chaque niveau (Figma : fills du composant, par variante) ───────
 
 const metal = stops => `linear-gradient(135deg, ${stops})`;
-const BRONZE  = metal('#ffd2a1 0%, #d08a4c 30%, #8a4b1f 55%, #d08a4c 78%, #3d1f0c 100%');
+const BRONZE  = metal('#dcb48e 0%, #9c6237 30%, #673a1a 55%, #9c6237 78%, #2b1608 100%');
 const ARGENT  = metal('#ffffff 0%, #c9d3df 30%, #6b7a8f 55%, #c9d3df 78%, #2b3442 100%');
-const OR      = metal('#fff3b0 0%, #f2b705 30%, #a86f00 55%, #f2b705 78%, #4d2f00 100%');
-const PLATINE = metal('#ffffff 0%, #d6e6f5 30%, #6f86a3 55%, #d6e6f5 78%, #1c2a3d 100%');
-const VIOLET  = metal('#efe3ff 0%, #a678f0 30%, #6b2fc4 55%, #a678f0 78%, #2a0d57 100%');
+const OR      = metal('#fff7a8 0%, #ffd000 30%, #d99a00 55%, #ffd000 78%, #5c3d00 100%');
+const PLATINE = metal('#e6f7ff 0%, #7fd3ff 30%, #2a9de0 55%, #7fd3ff 78%, #0b3a66 100%');
+const VIOLET  = metal('#f4ebff 0%, #b48cff 30%, #7a3fd6 55%, #b48cff 78%, #2a0d57 100%');
 
 const THEMES = {
-  1: { frame: BRONZE,  accent: BRONZE,  dark: '#3d1f0c', number: '#d08a4c', holo: 0 },
+  1: { frame: BRONZE,  accent: BRONZE,  dark: '#2b1608', number: '#c58a5c', holo: 0 },
   2: { frame: ARGENT,  accent: ARGENT,  dark: '#2b3442', number: '#c9d3df', holo: 0 },
-  3: { frame: OR,      accent: OR,      dark: '#4d2f00', number: '#f2b705', holo: 0 },
-  4: { frame: PLATINE, accent: PLATINE, dark: '#1c2a3d', number: '#d6e6f5', holo: 0.14 },
-  // Légendaire : cadre doré, liseré, pastille et contour de photo violets
-  5: { frame: OR,      accent: VIOLET,  dark: '#2a0d57', number: '#a678f0', holo: 0.24, lining: '#a678f0' },
+  3: { frame: OR,      accent: OR,      dark: '#5c3d00', number: '#ffd000', holo: 0 },
+  4: { frame: PLATINE, accent: PLATINE, dark: '#0b3a66', number: '#7fd3ff', holo: 0.14 },
+  // Légendaire : cadre, pastille et contour de photo violets, liseré doré
+  5: { frame: VIOLET,  accent: VIOLET,  dark: '#2a0d57', number: '#b48cff', holo: 0.24, lining: '#ffd000' },
 };
 
 // Retournement 3D écrit en style direct (et non en classes Tailwind) : c'est la
