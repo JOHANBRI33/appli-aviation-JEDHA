@@ -133,7 +133,7 @@ La référence est la charte « Flight Hunter » et le Figma « Appli aviation �
 - L'IA de vision n'est appelée que depuis `app/api/`, jamais depuis le navigateur.
 - Chaque photo est réduite (environ 1024 px de côté) avant envoi.
 - Reconnaissance (décision d'équipe du 13/11/2026) : identification libre, sans catalogue ni Supabase. Gemini reçoit la photo seule et renvoie en JSON `{ indices, aircraft_name, category, confidence, suggestions }`, le nom étant celui de la page Wikipédia anglaise (« Boeing 747 »). La route cherche ensuite la fiche de cet avion sur Wikidata (`lib/wikidata.js`). Si la confiance est faible, proposer les 3 suggestions au lieu d'une réponse.
-- L'avion reconnu est désigné par son numéro Wikidata (`Q179` pour le Boeing 747), ou par le nom donné par Gemini si Wikidata ne le trouve pas. La fiche renvoyée a les mêmes champs que la table `aircraft`, et sa rareté suit la même règle (`units_built`).
+- L'avion reconnu est désigné par son numéro Wikidata (`Q179` pour le Boeing 747), ou par le nom donné par Gemini si Wikidata ne le trouve pas. La fiche renvoyée a les mêmes champs que la table `aircraft`, et sa rareté suit la même règle (`units_built`). Nombre d'exemplaires inconnu → rareté 3 (Or), décision d'équipe du 16/11/2026.
 - Wikidata bloque les appels trop nombreux : une seule fiche cherchée par photo (celle de l'avion reconnu), jamais de recherches en rafale.
 - Row Level Security activée sur toutes les tables Supabase : un utilisateur ne lit et n'écrit que ses propres captures. La table `aircraft` est en lecture publique (anon + authenticated).
 - Photos des fiches : uniquement Wikimedia Commons, avec auteur et licence affichés sous chaque image. Jamais de photos Planespotters, JetPhotos ou Airliners.net.
