@@ -21,7 +21,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fetchEntities, fetchLabels, isAircraft, linkedIds, parseAircraft } from '../../lib/wikidata.js';
+import { fetchEntities, fetchLabels, isAircraft, linkedIds, parseAircraft, slugify } from '../../lib/wikidata.js';
 import { DIR, PAUSE_MS, fetchCached, readJson, sleep, withRetry } from './outils.js';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -77,16 +77,6 @@ LIMIT ${CANDIDATS_MAX}`;
     qid: b.item.value.split('/').pop(),
     sitelinks: Number(b.sitelinks.value),
   }));
-}
-
-/** "Boeing 777X" → "boeing-777x" (minuscules, sans accents ni espaces). */
-function slugify(text) {
-  return text
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, '')      // retire les précisions entre parenthèses
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
 }
 
 /**
