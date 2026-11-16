@@ -34,6 +34,7 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
   - `app/avions/[id]/` : fiche d'un avion *(à créer)*
   - `app/photo/` : prise de photo et résultat *(à créer)*
   - `app/hangar/` : collection de l'utilisateur
+  - `app/calendrier/` : meetings et salons de la saison, filtrables par mois (écran 12)
   - `app/hangar/carte/[id]/` : carte à collectionner d'un avion vu en vrai (écrans 13 et 13b)
   - `app/classement/` : classement *(à créer)*
   - `app/api/identifier/` : route serveur de reconnaissance (Gemini + fiche Wikidata)
@@ -45,6 +46,7 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - `lib/supabase/` : clients Supabase (navigateur et serveur)
 - `lib/identification.js` : appel à Gemini. `identifyAircraftFree` (identification libre, utilisée par l'appli) ; `identifyAircraft` + `loadCatalogue` (mode catalogue, gardé pour `npm run test:vision`)
 - `lib/wikidata.js` : fiche d'un avion depuis son nom (recherche Wikidata, données techniques, photo Commons, rareté), gardée en mémoire 24 h
+- `lib/evenements.js` : liste des meetings de la saison, écrite à la main et vérifiée auprès des organisateurs (pas de source automatique)
 - `lib/points.js` : barème de la rareté (niveau, points, badge)
 - `components/RarityTag.js` et `components/RarityBadge.js` : étiquette et badge ailé de rareté
 - `public/badges/` : les 5 badges ailés en SVG (bronze, argent, or, platine, legendaire)
