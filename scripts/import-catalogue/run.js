@@ -23,6 +23,7 @@ import {
   fetchEntities, fetchLabels, fetchCommonsImagesInfo, fetchWikipediaIntros,
   linkedIds, parseAircraft, toAircraftRow, WIKIPEDIA_TEXT_LICENSE,
 } from '../../lib/wikidata.js';
+import { createClient } from '@supabase/supabase-js';
 import { fetchCached, readJson, writeText } from './outils.js';
 import { RARITY_LEVELS } from '../../lib/points.js';
 
@@ -128,8 +129,9 @@ function percent(n, total) {
   return `${Math.round((100 * n) / total)} %`;
 }
 
-function writeApercu(rows, missing) {
+function writeApercu(rows, missing, typeById) {
   const total = rows.length;
+  const nbHelicos = rows.filter(r => typeById[r.wikidata_id] === 'helicoptere').length;
   const filled = c => rows.filter(r => r[c] !== null && !(Array.isArray(r[c]) && r[c].length === 0)).length;
 
   const countBy = key => rows.reduce((acc, r) => ({ ...acc, [r[key]]: (acc[r[key]] ?? 0) + 1 }), {});
@@ -151,7 +153,7 @@ function writeApercu(rows, missing) {
   const md = [
     '# Aperçu import catalogue — à relire avant import SQL',
     '',
-    `Généré le ${new Date().toISOString().slice(0, 10)} par \`npm run import:catalogue\` : **${total} avions**.`,
+    `Généré le ${new Date().toISOString().slice(0, 10)} par \`npm run import:catalogue\` : **${total} appareils** (${total - nbHelicos} avions, ${nbHelicos} hélicoptères).`,
     '',
     'Ordre d\'import dans Supabase : `supabase/migrations/002_aircraft_details.sql`, puis `supabase/seed/aircraft.sql`.',
     '',
@@ -166,27 +168,28 @@ function writeApercu(rows, missing) {
     '',
     '## Répartition',
     '',
-    '| Catégorie | Avions |', '|---|---|',
+    '| Catégorie | Appareils |', '|---|---|',
     ...Object.entries(byCategory).map(([c, n]) => `| ${c} | ${n} |`),
     '',
-    '| Rareté | Avions |', '|---|---|',
+    '| Rareté | Appareils |', '|---|---|',
     ...[1, 2, 3, 4, 5].map(r => `| ${r} — ${RARITY_LEVELS[r].label} | ${byRarity[r] ?? 0} |`),
     '',
-    `Rareté 3 par défaut quand le nombre d'exemplaires est inconnu : ${total - filled('units_built')} avions.`,
+    `Rareté 3 par défaut quand le nombre d'exemplaires est inconnu : ${total - filled('units_built')} appareils.`,
     '',
   ];
 
   if (missing.length > 0) {
-    md.push('## ⚠ Avions non importés', '', ...missing.map(m => `- ${m}`), '');
+    md.push('## ⚠ Appareils non importés', '', ...missing.map(m => `- ${m}`), '');
   }
 
   md.push(
-    '## Avions',
+    '## Appareils',
     '',
-    '| id | Nom | Catégorie | 1er vol | Exempl. | Rareté | Photo | Résumé | Sources |',
-    '|---|---|---|---|---|---|---|---|---|',
+    '| id | Nom | Type | Catégorie | 1er vol | Exempl. | Rareté | Photo | Résumé | Sources |',
+    '|---|---|---|---|---|---|---|---|---|---|',
     ...rows.map(r => [
-      r.id, r.name, r.category, r.first_flight ?? '⚠',
+      r.id, r.name, typeById[r.wikidata_id] === 'helicoptere' ? 'hélico' : 'avion',
+      r.category, r.first_flight ?? '⚠',
       r.units_built?.toLocaleString('fr-FR') ?? '⚠', r.rarity,
       r.image_url ? `[oui](${r.image_source_url})` : '⚠',
       r.wikipedia_url && r.description ? `[oui](${r.wikipedia_url})` : '⚠',
@@ -198,6 +201,43 @@ function writeApercu(rows, missing) {
   writeText('scripts/import-catalogue/apercu.md', md.join('\n'));
 }
 
+// ─── BASE SUPABASE ────────────────────────────────────────────────────────────
+
+/**
+ * Identifiants déjà utilisés dans la table aircraft pour ces numéros Wikidata.
+ *
+ * La route /api/identifier ajoute des appareils (verified = false) avec un
+ * identifiant qu'elle choisit. Si le seed en proposait un autre pour le même
+ * appareil, l'import échouerait (wikidata_id est unique) : on reprend donc
+ * celui de la base. Lecture avec la clé publique (RLS : lecture autorisée).
+ *
+ * @returns {Promise<object>} { Q867617: 'cirrus-sr22', … } ; vide si Supabase
+ *          n'est pas configuré (.env.local absent) ou injoignable
+ */
+async function existingIdsByQid(qids) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    console.warn('⚠ Supabase non configuré : identifiants existants non vérifiés');
+    return {};
+  }
+
+  const supabase = createClient(url, key, { auth: { persistSession: false } });
+  const result = {};
+  for (let i = 0; i < qids.length; i += 100) {
+    const { data, error } = await supabase
+      .from('aircraft')
+      .select('id, wikidata_id')
+      .in('wikidata_id', qids.slice(i, i + 100));
+    if (error) {
+      console.warn('⚠ Lecture Supabase impossible, identifiants existants non vérifiés :', error.message);
+      return {};
+    }
+    for (const row of data) result[row.wikidata_id] = row.id;
+  }
+  return result;
+}
+
 // ─── PROGRAMME ────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -205,7 +245,7 @@ async function main() {
 
   const { avions: candidats } = readJson('scripts/import-catalogue/candidats.json');
   const avions = candidats.filter(a => a.include);
-  console.log(`${avions.length} avions inclus dans candidats.json\n`);
+  console.log(`${avions.length} appareils inclus dans candidats.json\n`);
 
   // Indices visuels saisis à la main pour npm run test:vision (15 avions)
   const hintsById = Object.fromEntries(
@@ -214,27 +254,37 @@ async function main() {
 
   const { parsed, images, intros } = await collect(avions);
 
+  const existingIds = await existingIdsByQid(avions.map(a => a.wikidata_id));
+
   const rows = [];
   const missing = [];
+  const adopted = [];
   for (const avion of avions) {
     const a = parsed[avion.wikidata_id];
     if (!a) {
       missing.push(`${avion.id} (${avion.wikidata_id}) : introuvable sur Wikidata`);
       continue;
     }
+    // Déjà en base sous un autre identifiant (ajout automatique par la route) :
+    // on garde cet identifiant, la ligne passera à verified = true
+    const id = existingIds[avion.wikidata_id] ?? avion.id;
+    if (id !== avion.id) adopted.push(`${avion.wikidata_id} : ${avion.id} → ${id}`);
+
     rows.push(toAircraftRow({
-      id: avion.id, category: avion.category, parsed: a,
+      id, category: avion.category, parsed: a,
       image: images[a.image_file], intro: intros[a.frwiki_title],
       hints: hintsById[avion.id], verified: true,
     }));
   }
 
+  const typeById = Object.fromEntries(avions.map(a => [a.wikidata_id, a.type ?? 'avion']));
   writeSql(rows);
-  writeApercu(rows, missing);
+  writeApercu(rows, missing, typeById);
 
-  console.log(`\n✓ supabase/seed/aircraft.sql : ${rows.length} avions`);
+  console.log(`\n✓ supabase/seed/aircraft.sql : ${rows.length} appareils`);
   console.log('✓ scripts/import-catalogue/apercu.md : rapport à relire');
-  if (missing.length > 0) console.warn(`⚠ ${missing.length} avion(s) non importé(s), voir apercu.md`);
+  if (adopted.length > 0) console.log(`  identifiants repris de la base : ${adopted.join(', ')}`);
+  if (missing.length > 0) console.warn(`⚠ ${missing.length} appareil(s) non importé(s), voir apercu.md`);
 }
 
 main().catch(err => {
