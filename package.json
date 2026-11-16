@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test:vision": "node --conditions=react-server --env-file=.env.local scripts/test-vision/run.js",
     "import:selection": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/import-catalogue/selection.js",
-    "import:catalogue": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/import-catalogue/run.js"
+    "import:catalogue": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env.local scripts/import-catalogue/run.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
