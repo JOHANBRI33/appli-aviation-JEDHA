@@ -11,7 +11,8 @@
  * Bas de fiche selon l'origine : ?depuis=hangar → écran 09 « Ma prise de vue »,
  * lu dans la capture de l'utilisateur connecté (lib/captures.js), avec sa
  * photo (adresse signée 1 h) et le bouton « Retirer de mon Hangar ».
- * TODO : écran 11 « depuis la recherche » quand la recherche existera.
+ * Sinon : « Ajouter à ma collection » (Server Action addToCollection,
+ * app/hangar/actions.js), ou « Déjà dans ton Hangar » si l'avion y est.
  */
 
 import { Suspense } from 'react';
@@ -20,9 +21,12 @@ import { cacheLife } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import AircraftSheet from '@/components/AircraftSheet';
 import { PlaneIcon } from '@/components/icons';
+import Link from 'next/link';
 import RemoveCaptureButton from '@/components/RemoveCaptureButton';
+import AddToCollectionButton from '@/components/AddToCollectionButton';
 import { pointsForRarity } from '@/lib/points';
 import { getCurrentUser } from '@/lib/auth';
+import { loginUrl } from '@/lib/redirection';
 import { getMyCapture, seenDateFr, signPhotoUrls } from '@/lib/captures';
 
 const FICHE_COLUMNS = [
@@ -98,7 +102,55 @@ async function AircraftContent({ params, searchParams }) {
     );
   }
 
-  return <AircraftSheet fiche={fiche} backHref="/" />;
+  // Ouverte depuis ailleurs : « Ajouter à ma collection » (ou l'état actuel)
+  const user = await getCurrentUser();
+  const capture = user ? await getMyCapture(id) : null;
+
+  return (
+    <AircraftSheet fiche={fiche} backHref="/">
+      <CollectionPanel fiche={fiche} loggedIn={Boolean(user)} capture={capture} />
+    </AircraftSheet>
+  );
+}
+
+/**
+ * Bas de fiche publique : ajouter l'avion à sa collection (sans photo,
+ * 0 point). Déjà dans le Hangar → on le dit, avec un lien vers sa fiche
+ * « depuis le Hangar ». Visiteur non connecté → lien vers la connexion.
+ */
+function CollectionPanel({ fiche, loggedIn, capture }) {
+  const fichePath = `/avions/${encodeURIComponent(fiche.id)}`;
+
+  if (!loggedIn) {
+    return (
+      <Link href={loginUrl(fichePath)} className="flex min-h-11 items-center text-sm font-semibold text-brand-blue">
+        Connecte-toi pour l’ajouter à ta collection
+      </Link>
+    );
+  }
+
+  if (capture) {
+    return (
+      <div className="flex w-full items-center justify-between gap-3">
+        <p className="typo-item-title text-ink">
+          {capture.status === 'seen' ? 'Déjà dans ton Hangar · vu en vrai' : 'Déjà dans ta collection'}
+        </p>
+        <Link href={`${fichePath}?depuis=hangar`} className="flex min-h-11 shrink-0 items-center text-sm font-semibold text-brand-blue">
+          Voir
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="typo-body-sm w-full text-ink-muted">
+        Pas encore vu en vrai ? Ajoute-le à ta collection. Il rapportera {pointsForRarity(fiche.rarity)} pts
+        quand tu le prendras en photo.
+      </p>
+      <AddToCollectionButton aircraftId={fiche.id} />
+    </>
+  );
 }
 
 /**

@@ -8,6 +8,9 @@
  * Un visiteur non connecté voit une invitation à se connecter, pas une
  * erreur. La route /api/identifier vérifie aussi la session de son côté
  * (401 sinon) : cette page n'est qu'un confort d'affichage.
+ *
+ * Après la reconnaissance, « Ajouter à mon Hangar » enregistre la capture
+ * depuis le navigateur (lib/enregistrer-capture.js).
  */
 
 import { Suspense } from 'react';
@@ -22,18 +25,23 @@ export const metadata = {
   title: 'Scanner un avion — Flight Hunter',
 };
 
-export default function PhotoPage() {
+export default function PhotoPage({ searchParams }) {
   // Lire la session = lire les cookies : seulement dans un <Suspense>
   return (
     <Suspense fallback={null}>
-      <PhotoGate />
+      <PhotoGate searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function PhotoGate() {
+async function PhotoGate({ searchParams }) {
   const user = await getCurrentUser();
-  return user ? <PhotoClient /> : <LoginRequired />;
+  if (!user) return <LoginRequired />;
+
+  // ?reprise=1 : retour de /connexion après une session expirée au moment
+  // d'ajouter l'avion au Hangar (voir app/photo/reprise.js)
+  const { reprise } = await searchParams;
+  return <PhotoClient resume={reprise === '1'} />;
 }
 
 /** Visiteur non connecté : explication et accès à la connexion. */

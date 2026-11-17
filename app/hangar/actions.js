@@ -1,7 +1,8 @@
 'use server'
 
 /**
- * app/hangar/actions.js — Server Action « Retirer de mon Hangar »
+ * app/hangar/actions.js — Server Actions du Hangar :
+ * « Retirer de mon Hangar » et « Ajouter à ma collection »
  *
  * Supprime la capture d'un avion PUIS sa photo, avec la session de
  * l'utilisateur : la RLS n'autorise que ses propres lignes et fichiers.
@@ -58,4 +59,38 @@ export async function removeCapture(aircraftId) {
 
   // Déjà retiré (double appui, autre onglet) : même issue, retour au Hangar
   redirect('/hangar')
+}
+
+// Une ligne existe déjà pour cet utilisateur et cet avion (contrainte unique)
+const UNIQUE_VIOLATION = '23505'
+
+/**
+ * « Ajouter à ma collection » depuis une fiche : capture sans photo, 0 point.
+ * Si l'avion est déjà dans le Hangar (collection ou vu en vrai), rien ne change.
+ * Redirige ensuite vers la fiche « depuis le Hangar », qui montre l'état réel.
+ *
+ * @param {string} aircraftId identifiant du catalogue (lié par .bind dans AddToCollectionButton)
+ * @returns {Promise<{ error: string } | never>}
+ */
+export async function addToCollection(aircraftId) {
+  if (typeof aircraftId !== 'string' || aircraftId === '') {
+    return { error: 'Avion inconnu.' }
+  }
+  const fichePath = `/avions/${encodeURIComponent(aircraftId)}`
+
+  const user = await getCurrentUser()
+  if (!user) redirect(loginUrl(fichePath))
+
+  const supabase = await createClient()
+  // user_id est rempli par la base (auth.uid()) ; la RLS vérifie le propriétaire
+  const { error } = await supabase
+    .from('captures')
+    .insert({ aircraft_id: aircraftId, status: 'collection' })
+
+  if (error && error.code !== UNIQUE_VIOLATION) {
+    console.error('addToCollection : ajout impossible :', error.message)
+    return { error: 'L’ajout à ta collection a échoué. Réessaie dans un instant.' }
+  }
+
+  redirect(`${fichePath}?depuis=hangar`)
 }
