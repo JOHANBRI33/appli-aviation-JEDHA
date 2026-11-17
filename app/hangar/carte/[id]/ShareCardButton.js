@@ -5,7 +5,10 @@
  *
  * Bouton « Partager ma carte » (écran 13). Ouvre le menu de partage du
  * téléphone (Web Share API). Sur un ordinateur qui ne le propose pas, copie
- * le lien de la page et le dit.
+ * le message et le dit.
+ *
+ * On partage du TEXTE seulement, sans lien (décision d'équipe) : la carte
+ * est privée, un ami qui ouvrirait le lien tomberait sur la page de connexion.
  *
  * Props :
  *   name  {string}  nom de l'avion, repris dans le message partagé
@@ -17,16 +20,12 @@ export default function ShareCardButton({ name }) {
   const [status, setStatus] = useState(null); // null | 'copied' | 'error'
 
   async function share() {
-    const data = {
-      title: `Ma carte ${name} — Flight Hunter`,
-      text: `J’ai vu un ${name} en vrai ! Il est dans mon Hangar Flight Hunter.`,
-      url: window.location.href,
-    };
+    const text = `J’ai vu un ${name} en vrai ! Il est dans mon Hangar Flight Hunter.`;
     try {
       if (navigator.share) {
-        await navigator.share(data);
+        await navigator.share({ title: `Ma carte ${name} — Flight Hunter`, text });
       } else {
-        await navigator.clipboard.writeText(data.url);
+        await navigator.clipboard.writeText(text);
         setStatus('copied');
       }
     } catch (error) {
@@ -45,7 +44,7 @@ export default function ShareCardButton({ name }) {
         Partager ma carte
       </button>
       <p aria-live="polite" className="typo-body-sm text-on-brand empty:hidden">
-        {status === 'copied' && 'Lien de la carte copié.'}
+        {status === 'copied' && 'Message copié : colle-le où tu veux.'}
         {status === 'error' && 'Le partage n’a pas marché. Réessaie dans un instant.'}
       </p>
     </div>
