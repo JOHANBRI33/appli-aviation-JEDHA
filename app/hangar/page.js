@@ -22,6 +22,9 @@ import SkyBackground from '@/components/SkyBackground';
 import RarityBadge from '@/components/RarityBadge';
 import { pointsForRarity, RARITY_LEVELS } from '@/lib/points';
 import { EXAMPLE_CAPTURES, EXAMPLE_COLLECTION } from '@/lib/hangar-exemple';
+import { LogOutIcon } from '@/components/icons';
+import { requireUser } from '@/lib/auth';
+import { signOut } from '@/app/auth/actions';
 import HangarTabs from './HangarTabs';
 
 export const metadata = { title: 'Mon Hangar — Flight Hunter' };
@@ -52,8 +55,18 @@ export default function HangarPage() {
     <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8">
       <SkyBackground />
 
-      <header className="pb-4.5">
+      <header className="flex items-center justify-between pb-4.5">
         <h1 className="typo-title-lg text-ink">Mon Hangar</h1>
+        {/* Déconnexion : formulaire qui appelle la Server Action signOut */}
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="-mr-2 flex min-h-11 items-center gap-1.5 px-2 text-sm font-semibold text-brand-blue"
+          >
+            <LogOutIcon className="h-4.5 w-4.5" />
+            Se déconnecter
+          </button>
+        </form>
       </header>
 
       <Suspense fallback={<p className="typo-body text-ink-muted">Chargement du Hangar…</p>}>
@@ -64,6 +77,10 @@ export default function HangarPage() {
 }
 
 async function HangarContent() {
+  // Page réservée aux utilisateurs connectés (le proxy redirige déjà, mais
+  // chaque page vérifie elle-même la session : lib/auth.js)
+  await requireUser('/hangar');
+
   const catalogue = await getCatalogue();
   const byId = new Map(catalogue.map(aircraft => [aircraft.id, aircraft]));
 

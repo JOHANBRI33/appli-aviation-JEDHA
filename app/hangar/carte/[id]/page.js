@@ -21,6 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 import CollectibleCard from '@/components/CollectibleCard';
 import { ChevronLeftIcon } from '@/components/icons';
 import { EXAMPLE_CAPTURES, findExampleCapture } from '@/lib/hangar-exemple';
+import { requireUser } from '@/lib/auth';
 import ShareCardButton from './ShareCardButton';
 
 const CARD_COLUMNS = [
@@ -74,6 +75,9 @@ export default function CardPage({ params }) {
 
 async function CardContent({ params }) {
   const { id } = await params;
+  // Page réservée aux utilisateurs connectés (vérifiée ici en plus du proxy)
+  await requireUser(`/hangar/carte/${encodeURIComponent(id)}`);
+
   const capture = findExampleCapture(id);
   if (!capture) notFound();
 

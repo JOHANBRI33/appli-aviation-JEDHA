@@ -6,18 +6,17 @@
  * « aircraft », sinon sur Wikidata + Commons. Un avion trouvé sur Wikidata
  * est ajouté au catalogue (verified = false) si Gemini est assez sûr de lui.
  *
- * ⚠️  ACCÈS RESTREINT AU DÉVELOPPEMENT
- * Cette route appelle l'API Gemini et consomme notre quota.
- * En production (NODE_ENV === 'production'), elle renvoie 404 pour que
- * personne ne puisse s'en servir une fois le site en ligne.
- * Supprimer ce guard uniquement quand la gestion du quota et
- * l'authentification utilisateur seront en place (semaine 3+).
+ * 🔒  CONNEXION OBLIGATOIRE
+ * Cette route appelle l'API Gemini et consomme notre quota : elle renvoie
+ * 401 si l'utilisateur n'est pas connecté. Elle vérifie la session elle-même
+ * (lib/auth.js), sans compter sur proxy.js ni sur l'écran /photo.
  */
 
 import { NextResponse } from 'next/server';
 import { identifyAircraftFree, THINKING_LEVEL, SERVICE_OVERLOADED, UNKNOWN_ID } from '@/lib/identification';
 import { fetchAircraftFiche } from '@/lib/wikidata';
 import { addToCatalogue, findByNames, findByWikidataId } from '@/lib/catalogue';
+import { getCurrentUser } from '@/lib/auth';
 
 // Types MIME acceptés (le navigateur peut envoyer du HEIC mais ne peut pas
 // toujours l'afficher — la validation côté serveur reste nécessaire)
@@ -30,10 +29,14 @@ const AUTO_ADD_MIN_CONFIDENCE = 0.7;
 const VALID_THINKING_LEVELS = new Set(['minimal', 'low', 'medium', 'high']);
 
 export async function POST(request) {
-  // ── Guard production ────────────────────────────────────────────────────────
-  // Voir commentaire en haut de fichier.
-  if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ error: 'Non disponible.' }, { status: 404 });
+  // ── Connexion obligatoire ───────────────────────────────────────────────────
+  // Voir commentaire en haut de fichier. Vérifié avant de lire l'image.
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: 'Connexion obligatoire pour analyser une photo.' },
+      { status: 401 }
+    );
   }
 
   // ── Lecture du formulaire multipart ────────────────────────────────────────
