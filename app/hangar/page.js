@@ -27,7 +27,7 @@ import SkyBackground from '@/components/SkyBackground';
 import RarityBadge from '@/components/RarityBadge';
 import { pointsForRarity, RARITY_LEVELS } from '@/lib/points';
 import { CameraIcon, LogOutIcon, WarehouseIcon } from '@/components/icons';
-import { getMyProfile, requireUser } from '@/lib/auth';
+import { requireProfile } from '@/lib/auth';
 import { getMyCaptures, signPhotoUrls } from '@/lib/captures';
 import { signOut } from '@/app/auth/actions';
 import HangarTabs from './HangarTabs';
@@ -84,13 +84,13 @@ export default function HangarPage() {
 async function HangarContent() {
   // Page réservée aux utilisateurs connectés (le proxy redirige déjà, mais
   // chaque page vérifie elle-même la session : lib/auth.js)
-  const user = await requireUser('/hangar');
+  // Compte sans profil → « Choisis ton pseudo » (lib/auth.js)
+  const { profile } = await requireProfile('/hangar');
 
-  // Trois lectures indépendantes, lancées en même temps
-  const [catalogue, captures, profile] = await Promise.all([
+  // Deux lectures indépendantes, lancées en même temps
+  const [catalogue, captures] = await Promise.all([
     getCatalogue(),
     getMyCaptures(),
-    getMyProfile(user.id),
   ]);
   const byId = new Map(catalogue.map(aircraft => [aircraft.id, aircraft]));
 
@@ -108,7 +108,7 @@ async function HangarContent() {
   // Collection : déjà triée par date d'ajout (getMyCaptures)
   const collectionItems = withAircraft.filter(item => item.capture.status === 'collection');
 
-  const pseudo = profile?.username;
+  const pseudo = profile.username;
   if (withAircraft.length === 0) return <EmptyHangar pseudo={pseudo} />;
 
   // Adresses temporaires des photos des avions vus en vrai, en un seul appel

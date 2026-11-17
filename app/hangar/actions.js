@@ -14,7 +14,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getCurrentUser } from '@/lib/auth'
+import { chooseUsernameUrl, getCurrentUser } from '@/lib/auth'
 import { PHOTO_BUCKET } from '@/lib/captures'
 import { loginUrl } from '@/lib/redirection'
 
@@ -63,6 +63,8 @@ export async function removeCapture(aircraftId) {
 
 // Une ligne existe déjà pour cet utilisateur et cet avion (contrainte unique)
 const UNIQUE_VIOLATION = '23505'
+// Clé étrangère absente : ici, un compte sans ligne dans profiles
+const FOREIGN_KEY_VIOLATION = '23503'
 
 /**
  * « Ajouter à ma collection » depuis une fiche : capture sans photo, 0 point.
@@ -87,6 +89,10 @@ export async function addToCollection(aircraftId) {
     .from('captures')
     .insert({ aircraft_id: aircraftId, status: 'collection' })
 
+  // Compte sans profil (clé étrangère captures.user_id → profiles.id)
+  if (error?.code === FOREIGN_KEY_VIOLATION && /user_id/.test(error.message + error.details)) {
+    redirect(chooseUsernameUrl(fichePath))
+  }
   if (error && error.code !== UNIQUE_VIOLATION) {
     console.error('addToCollection : ajout impossible :', error.message)
     return { error: 'L’ajout à ta collection a échoué. Réessaie dans un instant.' }

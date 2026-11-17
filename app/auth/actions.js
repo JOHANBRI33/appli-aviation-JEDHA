@@ -139,6 +139,38 @@ export async function signIn(previousState, formData) {
   redirect(next)
 }
 
+// ─── Choix du pseudo (compte sans profil) ────────────────────────────────────
+
+/**
+ * Crée le profil d'un compte qui n'en a pas (compte créé avant la migration
+ * 003). Passe par la fonction SQL create_my_profile (migration 004) : les
+ * utilisateurs n'ont pas le droit d'écrire directement dans profiles, et la
+ * fonction ne crée que le profil de l'appelant (auth.uid()).
+ */
+export async function chooseUsername(previousState, formData) {
+  const username = field(formData, 'username')
+  const next = safeNextPath(formData.get('suivant'))
+  const values = { username }
+
+  const supabase = await createClient()
+  // Une Server Action est une adresse publique : elle vérifie elle-même la session
+  const { data } = await supabase.auth.getClaims()
+  if (!data?.claims?.sub) redirect(`/connexion?suivant=${encodeURIComponent(next)}`)
+
+  if (!USERNAME_PATTERN.test(username)) return { error: MESSAGES.usernameFormat, values }
+
+  const { error } = await supabase.rpc('create_my_profile', { new_username: username })
+  if (error) {
+    // 23505 : index unique sur lower(username) ; 23514 : format refusé par la base
+    if (error.code === '23505') return { error: MESSAGES.usernameTaken, values }
+    if (error.code === '23514') return { error: MESSAGES.usernameFormat, values }
+    console.error('chooseUsername: erreur Supabase :', error.code, error.message)
+    return { error: MESSAGES.unknown, values }
+  }
+
+  redirect(next)
+}
+
 // ─── Déconnexion ─────────────────────────────────────────────────────────────
 
 export async function signOut() {

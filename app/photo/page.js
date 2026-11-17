@@ -17,7 +17,8 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import SkyBackground from '@/components/SkyBackground';
 import { CameraIcon } from '@/components/icons';
-import { getCurrentUser } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import { chooseUsernameUrl, getCurrentUser, getMyProfile } from '@/lib/auth';
 import { loginUrl } from '@/lib/redirection';
 import PhotoClient from './PhotoClient';
 
@@ -37,6 +38,10 @@ export default function PhotoPage({ searchParams }) {
 async function PhotoGate({ searchParams }) {
   const user = await getCurrentUser();
   if (!user) return <LoginRequired />;
+
+  // Compte sans profil : rien ne pourrait entrer dans le Hangar
+  // (captures.user_id → profiles.id). On fait d'abord choisir un pseudo.
+  if (!(await getMyProfile(user.id))) redirect(chooseUsernameUrl('/photo'));
 
   // ?reprise=1 : retour de /connexion après une session expirée au moment
   // d'ajouter l'avion au Hangar (voir app/photo/reprise.js)

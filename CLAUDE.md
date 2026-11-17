@@ -36,6 +36,7 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
   - `app/photo/` : prise de photo, résultat et « Ajouter à mon Hangar » (connexion obligatoire) ; `reprise.js` garde le résultat dans sessionStorage si la session expire avant l'ajout
   - `app/hangar/` : Hangar de l'utilisateur (vrais avions vus et collection, score, badges) ; `actions.js` : Server Actions « Retirer de mon Hangar » et « Ajouter à ma collection »
   - `app/connexion/`, `app/inscription/` : connexion et inscription (email, mot de passe, pseudo) ; `app/auth/actions.js` : Server Actions signUp, signIn, signOut ; `app/auth/confirm/` : lien de confirmation envoyé par email
+  - `app/choisir-pseudo/` : « Choisis ton pseudo » pour un compte connecté sans profil (créé avant la migration 003) ; `/hangar`, `/photo` et « Ajouter à ma collection » y renvoient (`requireProfile` dans `lib/auth.js`)
   - `app/calendrier/` : meetings et salons de la saison, filtrables par mois (écran 12)
   - `app/hangar/carte/[id]/` : carte à collectionner d'un avion vu en vrai (écrans 13 et 13b)
   - `app/classement/` : classement *(à créer)*
@@ -63,6 +64,7 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
   - `001_aircraft.sql` : table aircraft, RLS
   - `002_aircraft_details.sql` : données techniques en plus, sources, alias, `enwiki_title`, `verified`
   - `003_users.sql` : `profiles`, `captures`, RLS, bucket `captures`, `username_available`, `get_leaderboard`
+  - `004_create_my_profile.sql` : `create_my_profile(new_username)`, profil d'un compte qui n'en a pas (écran « Choisis ton pseudo »)
 - `supabase/seed/` : données initiales
   - `aircraft.sql` : 330 appareils (200 avions, 130 hélicoptères) générés par `npm run import:catalogue` (à exécuter après la migration 002)
 - `scripts/test-vision/` : test de reconnaissance en batch (mode catalogue)
@@ -138,7 +140,7 @@ RLS : lecture publique sur `visible = true` ; aucune écriture pour anon / authe
 - Rien ne redescend : `collection` peut passer à `seen`, jamais l'inverse. Une capture `seen` garde sa première photo (seul le lieu peut changer). Un avion déjà vu en vrai affiche « Déjà dans ton Hangar », sans points.
 - Les points ne sont jamais stockés : ils se calculent à partir des avions vus en vrai et du barème de `lib/points.js`, recopié dans `get_leaderboard()` (à garder identique).
 - Les badges se déduisent de la rareté (`aircraft.rarity`) des avions vus en vrai : pas de table `badges`.
-- Fonctions SQL : `username_available(candidate)` (pseudo libre ?, appelable sans compte) et `get_leaderboard(max_rows)` (pseudo, nombre d'avions vus, score ; utilisateurs connectés seulement).
+- Fonctions SQL : `username_available(candidate)` (pseudo libre ?, appelable sans compte), `get_leaderboard(max_rows)` (pseudo, nombre d'avions vus, score ; utilisateurs connectés seulement) et `create_my_profile(new_username)` (crée le profil de l'appelant seulement, s'il n'en a pas).
 - Droits par colonne : un `select('*')` sur `profiles` échoue, il faut nommer les colonnes (`id, username`).
 - Storage : bucket privé `captures` (5 Mo, JPEG / PNG / WebP), chaque utilisateur ne lit, n'envoie et ne supprime que dans son dossier `<user_id>/`. Pas de politique UPDATE : une photo n'est jamais remplacée (pas d'upsert). Photos affichées par des adresses signées valables 1 h.
 
