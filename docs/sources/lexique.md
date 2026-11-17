@@ -64,3 +64,13 @@ Un terme peut avoir des variantes, séparées par « / » : - **Commit / commits
 - **Wikidata** : une immense base de données libre et publique (de la famille de Wikipédia) d'où viennent les caractéristiques techniques des avions.
 - **Wikimedia Commons** : la photothèque libre de Wikipédia, seule source autorisée pour les photos des fiches avions.
 - **Workflow** : la « recette » d'un robot GitHub Actions : un fichier qui dit quand se déclencher et quelles étapes exécuter.
+- **Alias** : un autre nom sous lequel on connaît un avion (« Jumbo Jet » pour le Boeing 747), enregistré pour le retrouver quel que soit le nom donné par l'IA.
+- **Clé administrateur (service_role)** : la clé secrète de Supabase qui permet au serveur d'écrire dans le catalogue ; elle n'est jamais envoyée au téléphone.
+- **Erreur 429** : la réponse d'un service qui reçoit trop de demandes à la suite et demande d'attendre avant de recommencer.
+- **Identifiant court** : le nom technique d'un avion dans le catalogue (`b747`, `rafale`), utilisé dans les adresses des pages comme `/avions/b747`.
+- **Palier** : le nombre d'appareils importés à la fois dans le catalogue (200 avions, puis 130 hélicoptères), pour avancer par étapes vérifiables.
+- **SPARQL** : le langage qui permet de poser des questions à Wikidata, par exemple « quels sont les modèles d'avions les plus connus ? ».
+- **Unité de mesure** : ce dans quoi une valeur est exprimée (km/h, nœuds, pieds, mètres) ; il faut la connaître pour convertir correctement.
+- **Variable d'environnement** : un réglage rangé hors du code (dans `.env.local` ou sur Vercel), utilisé notamment pour les clés secrètes.
+- **Vérifié / non vérifié** : indique si la fiche d'un avion a été relue par l'équipe (vérifiée) ou ajoutée automatiquement après une photo (non vérifiée).
+- **Wikipédia** : l'encyclopédie libre d'où viennent les résumés des fiches ; ses textes sont sous licence CC BY-SA, ce qui oblige à afficher un lien vers l'article.
