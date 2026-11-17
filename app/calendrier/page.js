@@ -24,7 +24,7 @@ export default function CalendrierPage() {
   const events = [...EVENTS].sort(byDate);
 
   return (
-    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8">
+    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8 lg:max-w-3xl lg:pt-8">
       <SkyBackground />
 
       <header className="flex flex-col gap-0.5 pb-4.5">

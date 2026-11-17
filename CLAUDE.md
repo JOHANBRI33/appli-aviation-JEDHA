@@ -42,6 +42,7 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - `components/` : composants réutilisables
   - `components/AircraftCard.js` : carte fiche avion (photo + données techniques)
   - `components/SkyBackground.js` : fond ciel avec nuages des écrans principaux
+  - `components/TopNav.js` : barre de navigation du haut, sur ordinateur (lg: 1024 px et plus) ; la barre du bas (BottomNav) est masquée
   - `components/CollectibleCard.js` : carte à collectionner (recto, verso, retournement), cadre en métal selon la rareté
 - `public/` : logo (`logo-flight-hunter.png`), icônes de l'appli (`icons/`), nuages du fond ciel (`sky-clouds.svg`)
 - `lib/supabase/` : clients Supabase (navigateur, serveur, et `admin.js` avec la clé service_role, serveur uniquement)

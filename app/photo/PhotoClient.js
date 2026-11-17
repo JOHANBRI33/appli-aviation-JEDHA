@@ -5,7 +5,8 @@
  *
  * Parcours « Scanner un avion » (Figma « Écrans MVP », écrans 03 à 05).
  * Étapes (variable `step`) :
- *   1. 'idle'    : choix entre appareil photo et galerie (fond ciel)
+ *   1. 'idle'    : choix entre appareil photo et galerie (fond ciel) ; sur
+ *                  ordinateur, zone où glisser la photo d'un appareil photo
  *   2. 'loading' : écran 03 « Analyse en cours… » — la photo est réduite à
  *                  1024 px puis envoyée à /api/identifier ; bouton Annuler
  *   3. 'result'  : - confiance ≥ 70 % → l'avion reconnu
@@ -256,7 +257,7 @@ export default function PhotoClient() {
   }
 
   return (
-    <main className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col">
+    <main className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col lg:min-h-0 lg:flex-1 lg:max-w-2xl">
       {/* Fond ciel : partout sauf pendant l'analyse (écran bleu nuit) */}
       {step !== 'loading' && <SkyBackground />}
 
@@ -281,6 +282,7 @@ export default function PhotoClient() {
         <IdleView
           onCamera={() => cameraInputRef.current?.click()}
           onGallery={() => galleryInputRef.current?.click()}
+          onDropFile={analyse}
         />
       )}
 
@@ -319,7 +321,16 @@ export default function PhotoClient() {
 
 // ─── Étape 1 : choix de la photo ─────────────────────────────────────────────
 
-function IdleView({ onCamera, onGallery }) {
+function IdleView({ onCamera, onGallery, onDropFile }) {
+  const [dragging, setDragging] = useState(false);
+
+  function onDrop(event) {
+    event.preventDefault();
+    setDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) onDropFile(file);
+  }
+
   return (
     <div className="flex flex-1 flex-col px-6 py-8">
       <div className="flex flex-1 flex-col justify-center gap-3 text-center">
@@ -329,7 +340,8 @@ function IdleView({ onCamera, onGallery }) {
         </p>
       </div>
 
-      <div className="flex flex-col gap-3.5">
+      {/* Téléphone : appareil photo ou galerie */}
+      <div className="flex flex-col gap-3.5 lg:hidden">
         <button type="button" onClick={onCamera} className={PRIMARY_BUTTON}>
           <CameraIcon />
           Prendre une photo
@@ -337,6 +349,24 @@ function IdleView({ onCamera, onGallery }) {
         <button type="button" onClick={onGallery} className={OUTLINE_BUTTON}>
           <ImageIcon />
           Choisir dans la galerie
+        </button>
+      </div>
+
+      {/* Ordinateur : glisser la photo d'un appareil photo, ou la choisir */}
+      <div
+        onDragOver={event => { event.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        className={`hidden flex-col items-center gap-4 rounded-lg border-2 border-dashed px-8 py-12 text-center lg:flex
+                    ${dragging ? 'border-brand-blue bg-brand-blue-soft' : 'border-line bg-surface-raised'}`}
+      >
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-blue-soft text-brand-blue">
+          <ImageIcon className="h-8 w-8" />
+        </span>
+        <p className="text-lg font-semibold text-ink">Glisse ici la photo de ton appareil photo</p>
+        <p className="typo-body-sm max-w-sm text-ink-muted">JPEG, PNG ou HEIC, depuis ta carte mémoire ou ton ordinateur.</p>
+        <button type="button" onClick={onGallery} className={`${PRIMARY_BUTTON} max-w-xs`}>
+          Choisir une photo sur l’ordinateur
         </button>
       </div>
     </div>

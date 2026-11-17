@@ -62,7 +62,7 @@ export async function generateMetadata({ params }) {
 
 export default function AircraftPage({ params, searchParams }) {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface lg:max-w-3xl">
       <Suspense fallback={<p className="typo-body px-6 py-8 text-ink-muted">Chargement de la fiche…</p>}>
         <AircraftContent params={params} searchParams={searchParams} />
       </Suspense>

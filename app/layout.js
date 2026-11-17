@@ -9,6 +9,7 @@
 import { Barlow_Condensed, DM_Sans, JetBrains_Mono } from 'next/font/google'
 import { Suspense } from 'react'
 import BottomNav from '@/components/BottomNav'
+import TopNav from '@/components/TopNav'
 import './globals.css'
 
 // Titres et nom des avions
@@ -50,6 +51,10 @@ export default function RootLayout({ children }) {
       className={`${barlowCondensed.variable} ${dmSans.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Barre du haut : ordinateur seulement (lg:). Suspense : elle lit l'URL */}
+        <Suspense fallback={null}>
+          <TopNav />
+        </Suspense>
         {children}
         {/* Barre du bas : masquée automatiquement sur les écrans plein écran.
             Suspense : BottomNav lit l'URL (usePathname), connue seulement au

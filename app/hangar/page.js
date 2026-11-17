@@ -57,7 +57,7 @@ async function getCatalogue() {
 
 export default function HangarPage() {
   return (
-    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8">
+    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8 lg:max-w-5xl lg:pt-8">
       <SkyBackground />
 
       <header className="flex items-center justify-between pb-4.5">

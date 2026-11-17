@@ -74,7 +74,7 @@ export default function HangarTabs({ seen, collection }) {
           </p>
         )}
 
-        <ul className="grid grid-cols-2 gap-3">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {items.map(({ aircraft, photoUrl }) => (
             <li key={aircraft.id}>
               <HangarTile

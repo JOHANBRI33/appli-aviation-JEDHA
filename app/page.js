@@ -86,7 +86,7 @@ function badgesEarned(seen) {
 
 export default function Home() {
   return (
-    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8">
+    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8 lg:max-w-3xl lg:pt-8">
       <SkyBackground />
 
       {/* Pendant la lecture des données : l'écran sans pseudo ni compteurs */}
@@ -162,19 +162,19 @@ function HomeView({ pseudo = null, points = null, hangarText = 'Ta collection d�
         )}
       </header>
 
-      <nav aria-label="Accès rapides" className="flex flex-col gap-3">
+      <nav aria-label="Accès rapides" className="flex flex-col gap-3 lg:grid lg:grid-cols-3">
         {/* Carte principale : Scanner un avion */}
         <Link
           href="/photo"
           className="flex items-center gap-3.5 rounded-lg bg-brand-blue px-[18px] py-[22px]
-                     text-on-brand active:bg-brand-blue-strong"
+                     text-on-brand active:bg-brand-blue-strong lg:col-span-3"
         >
           <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-md bg-brand-blue-strong">
             <CameraIcon className="h-[26px] w-[26px]" />
           </span>
           <span className="flex flex-1 flex-col gap-0.5">
             <span className="text-xl font-bold">Scanner un avion</span>
-            <span className="typo-body-sm opacity-90">Prends-le en photo, l’appli l’identifie</span>
+            <span className="typo-body-sm opacity-90">Prends-le en photo ou importe celle de ton appareil</span>
           </span>
           <ChevronRightIcon className="h-5 w-5" />
         </Link>
@@ -224,7 +224,7 @@ function RecentCaptures({ recent }) {
           Ton premier avion vu en vrai apparaîtra ici, avec ses points.
         </p>
       ) : (
-        <ul className="grid grid-cols-2 gap-3">
+        <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {recent.map(({ id, aircraft, photoUrl }) => (
             <li key={id}>
               <HangarTile aircraft={aircraft} photoUrl={photoUrl} mode="seen" href={`/hangar/carte/${aircraft.id}`} />
