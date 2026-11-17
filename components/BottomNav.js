@@ -8,6 +8,7 @@
  *
  * - Accueil · Hangar · [Scanner] · Recherche · Calendrier
  * - L'onglet de l'écran en cours est en brand-blue (usePathname).
+ * - Masquée sur ordinateur (lg:hidden) : components/TopNav.js la remplace en haut.
  * - Masquée sur les écrans plein écran (HIDDEN_ON) : scan, fiche avion, labo.
  * - « sticky bottom-0 » : elle reste collée en bas quand la page défile, sans
  *   recouvrir la fin du contenu (pas besoin de marge en bas des pages).
@@ -55,7 +56,7 @@ export default function BottomNav() {
   return (
     <nav
       aria-label="Navigation principale"
-      className="sticky bottom-0 z-10 border-t border-line bg-surface-raised"
+      className="sticky bottom-0 z-10 border-t border-line bg-surface-raised lg:hidden"
     >
       <div
         className="mx-auto flex min-h-[86px] max-w-md items-start justify-between px-3 pt-2.5

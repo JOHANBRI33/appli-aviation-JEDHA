@@ -42,6 +42,7 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - `components/` : composants réutilisables
   - `components/AircraftCard.js` : carte fiche avion (photo + données techniques)
   - `components/SkyBackground.js` : fond ciel avec nuages des écrans principaux
+  - `components/TopNav.js` : barre de navigation du haut, sur ordinateur (lg: 1024 px et plus) ; la barre du bas (BottomNav) est masquée
   - `components/CollectibleCard.js` : carte à collectionner (recto, verso, retournement), cadre en métal selon la rareté
 - `public/` : logo (`logo-flight-hunter.png`), icônes de l'appli (`icons/`), nuages du fond ciel (`sky-clouds.svg`)
 - `lib/supabase/` : clients Supabase (navigateur, serveur, et `admin.js` avec la clé service_role, serveur uniquement)
@@ -145,6 +146,7 @@ La référence est la charte « Flight Hunter » et le Figma « Appli aviation �
   - `SUPABASE_SERVICE_ROLE_KEY` (serveur uniquement : ajout automatique d'avions au catalogue, à déclarer aussi sur Vercel)
   - `VISION_API_KEY` (serveur uniquement)
 - L'IA de vision n'est appelée que depuis `app/api/`, jamais depuis le navigateur.
+- Supabase Auth → Redirect URLs : uniquement des adresses exactes (`http://localhost:3000/auth/confirm`, `https://<app>.vercel.app/auth/confirm`). Jamais de joker du type `https://*-<équipe>.vercel.app/**` : n'importe qui peut créer un projet Vercel dont l'adresse se termine ainsi et recevoir les liens de connexion.
 - Chaque photo est réduite (environ 1024 px de côté) avant envoi.
 - Reconnaissance (décision d'équipe du 13/11/2026) : identification libre, sans catalogue ni Supabase. Gemini reçoit la photo seule et renvoie en JSON `{ indices, aircraft_name, category, confidence, suggestions }`, le nom étant celui de la page Wikipédia anglaise (« Boeing 747 »). La route cherche ensuite la fiche dans la table `aircraft` (colonne `aliases`, `lib/catalogue.js`), pour l'avion choisi et ses suggestions ; sinon sur Wikidata (`lib/wikidata.js`), et l'avion est alors ajouté au catalogue avec `verified = false` si la confiance est d'au moins 0,7. Si la confiance est faible, proposer les 3 suggestions au lieu d'une réponse.
 - L'avion reconnu est désigné par son identifiant du catalogue (`b747`), sinon par son numéro Wikidata (`Q179`, si l'ajout au catalogue n'a pas eu lieu), sinon par le nom donné par Gemini. La fiche renvoyée a les mêmes champs que la table `aircraft`, et sa rareté suit la même règle (`units_built`). Nombre d'exemplaires inconnu → rareté 3 (Or), décision d'équipe du 16/11/2026.

@@ -47,3 +47,6 @@ next-env.d.ts
 
 # cache des appels Wikidata / Commons / Wikipédia du script d import
 scripts/import-catalogue/cache/
+
+# fichiers temporaires du CLI Supabase (supabase link…)
+supabase/.temp/

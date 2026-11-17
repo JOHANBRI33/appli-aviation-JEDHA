@@ -41,7 +41,7 @@ async function getCatalogue() {
 
 export default function RecherchePage() {
   return (
-    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8">
+    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8 lg:max-w-3xl lg:pt-8">
       <SkyBackground />
 
       <header className="pb-4.5">

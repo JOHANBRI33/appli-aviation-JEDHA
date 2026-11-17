@@ -21,7 +21,8 @@
  *   aircraft  {object}  ligne de la table aircraft (name, manufacturer, category,
  *                       description, first_flight, max_speed_kmh, wingspan_m,
  *                       rarity, image_url, image_author, image_license, wikipedia_url)
- *   capture   {object}  { created_at, place } : la prise de vue
+ *   capture   {object}  { seen_at, place } : la prise de vue (ligne de captures ;
+ *                       seen_at = passage en « vu en vrai », place facultatif)
  *   number    {number}  numéro de la carte dans la collection (1, 2, 3…)
  *   total     {number}  nombre d'avions du catalogue
  */
@@ -61,7 +62,14 @@ const NIGHT = 'linear-gradient(180deg, #13306e 0%, #0a1f4f 55%, #061640 100%)';
 // ─── Mise en forme des données ───────────────────────────────────────────────
 
 const numberFr = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
-const dateFr = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+// Fuseau fixé : le serveur (UTC) et le téléphone affichent le même jour
+const dateFr = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' });
+
+/** « Vu le 14/06/2026 · Meeting de La Ferté-Alais » (le lieu est facultatif). */
+function seenLabel(capture) {
+  const date = `Vu le ${dateFr.format(new Date(capture.seen_at))}`;
+  return capture.place ? `${date} · ${capture.place}` : date;
+}
 const MACH_KMH = 1235; // vitesse du son au niveau de la mer
 
 /** « Mach 1,8 » au-delà du mur du son (plus court sur la carte), sinon « 870 km/h ». */
@@ -207,7 +215,7 @@ function Front({ aircraft, capture, theme, numberLabel }) {
       {/* Prise de vue et numéro */}
       <div className="mt-auto flex items-end justify-between gap-2 font-mono text-[11px]">
         <span className="min-w-0 truncate text-on-brand/70">
-          Vu le {dateFr.format(new Date(capture.created_at))} · {capture.place}
+          {seenLabel(capture)}
         </span>
         <span className="shrink-0 font-medium" style={{ color: theme.number }}>{numberLabel}</span>
       </div>
@@ -246,7 +254,7 @@ function Back({ aircraft, capture, theme, numberLabel }) {
       <section className="flex flex-col gap-1 rounded-[10px] border border-white/20 bg-white/8 px-3 py-2.5">
         <h3 className="font-mono text-[11px] font-medium tracking-[0.06em] text-on-brand/65 uppercase">Ma prise de vue</h3>
         <p className="text-[13.5px] font-medium">
-          Vu le {dateFr.format(new Date(capture.created_at))} · {capture.place}
+          {seenLabel(capture)}
         </p>
         <p className="font-mono text-[10.5px] text-on-brand/65">Photo privée · visible par toi seul</p>
       </section>
