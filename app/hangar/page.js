@@ -10,18 +10,26 @@
  *      (composant client HangarTabs)
  *
  * Le nom, le constructeur et la rareté des avions viennent de la table
- * `aircraft`. Les captures sont des DONNÉES D'EXEMPLE (lib/hangar-exemple.js)
- * tant que la table `captures` n'existe pas. Les badges se déduisent de la
- * rareté des avions vus en vrai : pas de table à part.
+ * `aircraft` (catalogue public, en cache). Les captures et le pseudo sont lus
+ * avec la session de l'utilisateur (lib/captures.js, lib/auth.js) : la RLS
+ * ne lui montre que les siennes. Les photos s'affichent par des adresses
+ * signées valables 1 h. Les points et les badges se calculent à partir de
+ * la rareté des avions vus en vrai : rien n'est stocké.
+ *
+ * Hangar vide : un état vide invite à photographier un premier avion.
  */
 
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { cacheLife } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import SkyBackground from '@/components/SkyBackground';
 import RarityBadge from '@/components/RarityBadge';
 import { pointsForRarity, RARITY_LEVELS } from '@/lib/points';
-import { EXAMPLE_CAPTURES, EXAMPLE_COLLECTION } from '@/lib/hangar-exemple';
+import { CameraIcon, LogOutIcon, WarehouseIcon } from '@/components/icons';
+import { requireProfile } from '@/lib/auth';
+import { getMyCaptures, signPhotoUrls } from '@/lib/captures';
+import { signOut } from '@/app/auth/actions';
 import HangarTabs from './HangarTabs';
 
 export const metadata = { title: 'Mon Hangar — Flight Hunter' };
@@ -52,8 +60,18 @@ export default function HangarPage() {
     <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-3 pb-8">
       <SkyBackground />
 
-      <header className="pb-4.5">
+      <header className="flex items-center justify-between pb-4.5">
         <h1 className="typo-title-lg text-ink">Mon Hangar</h1>
+        {/* Déconnexion : formulaire qui appelle la Server Action signOut */}
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="-mr-2 flex min-h-11 items-center gap-1.5 px-2 text-sm font-semibold text-brand-blue"
+          >
+            <LogOutIcon className="h-4.5 w-4.5" />
+            Se déconnecter
+          </button>
+        </form>
       </header>
 
       <Suspense fallback={<p className="typo-body text-ink-muted">Chargement du Hangar…</p>}>
@@ -64,12 +82,39 @@ export default function HangarPage() {
 }
 
 async function HangarContent() {
-  const catalogue = await getCatalogue();
+  // Page réservée aux utilisateurs connectés (le proxy redirige déjà, mais
+  // chaque page vérifie elle-même la session : lib/auth.js)
+  // Compte sans profil → « Choisis ton pseudo » (lib/auth.js)
+  const { profile } = await requireProfile('/hangar');
+
+  // Deux lectures indépendantes, lancées en même temps
+  const [catalogue, captures] = await Promise.all([
+    getCatalogue(),
+    getMyCaptures(),
+  ]);
   const byId = new Map(catalogue.map(aircraft => [aircraft.id, aircraft]));
 
-  // On ne garde que les avions encore présents dans le catalogue
-  const seen = EXAMPLE_CAPTURES.map(c => byId.get(c.aircraft_id)).filter(Boolean);
-  const collection = EXAMPLE_COLLECTION.map(id => byId.get(id)).filter(Boolean);
+  // Une capture + sa ligne du catalogue. On ne garde que les avions encore
+  // visibles dans le catalogue (un avion masqué sort du Hangar et du score,
+  // comme dans le classement get_leaderboard).
+  const withAircraft = captures
+    .map(capture => ({ capture, aircraft: byId.get(capture.aircraft_id) }))
+    .filter(item => item.aircraft);
+
+  // Vus en vrai : du plus récent au plus ancien passage en « vu en vrai »
+  const seenItems = withAircraft
+    .filter(item => item.capture.status === 'seen')
+    .sort((a, b) => b.capture.seen_at.localeCompare(a.capture.seen_at));
+  // Collection : déjà triée par date d'ajout (getMyCaptures)
+  const collectionItems = withAircraft.filter(item => item.capture.status === 'collection');
+
+  const pseudo = profile.username;
+  if (withAircraft.length === 0) return <EmptyHangar pseudo={pseudo} />;
+
+  // Adresses temporaires des photos des avions vus en vrai, en un seul appel
+  const photoUrls = await signPhotoUrls(seenItems.map(item => item.capture.photo_path));
+  const seen = seenItems.map(item => item.aircraft);
+  const collection = collectionItems.map(item => item.aircraft);
 
   // Points : barème de lib/points.js appliqué à chaque avion vu en vrai
   // (la collection rapporte 0 point)
@@ -87,14 +132,49 @@ async function HangarContent() {
 
   return (
     <div className="flex flex-col gap-4.5">
-      <p className="typo-credit text-ink-muted">
-        Données d’exemple : tes captures ne sont pas encore enregistrées.
-      </p>
+      {pseudo && <p className="-mt-3 text-sm text-ink-muted">Hangar de {pseudo}</p>}
 
       <Score points={points} seenCount={seen.length} levelsEarned={levelsEarned} levelsTotal={Object.keys(RARITY_LEVELS).length} />
       <CatalogueProgress owned={modelsOwned} total={catalogue.length} />
       <BadgesByRarity counts={countsByRarity} />
-      <HangarTabs seen={seen} collection={collection} />
+      <HangarTabs
+        seen={seenItems.map(({ aircraft, capture }) => ({ aircraft, photoUrl: photoUrls.get(capture.photo_path) ?? null }))}
+        collection={collectionItems.map(({ aircraft }) => ({ aircraft, photoUrl: null }))}
+      />
+    </div>
+  );
+}
+
+/** Hangar vide : une seule action, photographier un premier avion. */
+function EmptyHangar({ pseudo }) {
+  return (
+    <div className="flex flex-1 flex-col">
+      {pseudo && <p className="-mt-3 pb-4.5 text-sm text-ink-muted">Hangar de {pseudo}</p>}
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-blue-soft text-brand-blue">
+          <WarehouseIcon className="h-6 w-6" />
+        </span>
+        <h2 className="typo-title-md text-ink">Ton Hangar est vide</h2>
+        <p className="typo-body text-ink-muted">
+          Photographie ton premier avion : l’appli l’identifie, il rejoint ton Hangar et tu gagnes tes premiers points.
+        </p>
+      </div>
+
+      <Link
+        href="/photo"
+        className="typo-label flex h-13.5 w-full items-center justify-center gap-2 rounded-md bg-brand-blue
+                   px-5 text-on-brand active:bg-brand-blue-strong"
+      >
+        <CameraIcon className="h-5 w-5" />
+        Scanner un avion
+      </Link>
+      <Link
+        href="/recherche"
+        className="flex min-h-11 items-center justify-center text-sm font-semibold text-brand-blue"
+      >
+        Parcourir le catalogue
+      </Link>
     </div>
   );
 }

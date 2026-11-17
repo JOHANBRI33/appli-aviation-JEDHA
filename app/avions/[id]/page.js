@@ -8,8 +8,11 @@
  * ('use cache' + cacheLife) avec un client Supabase sans cookies, car la
  * table est publique et un cache ne peut pas dépendre de la session.
  *
- * Bas de fiche selon l'origine : ?depuis=hangar → écran 09 « Ma prise de vue ».
- * TODO : écran 11 « depuis la recherche » quand la recherche existera.
+ * Bas de fiche selon l'origine : ?depuis=hangar → écran 09 « Ma prise de vue »,
+ * lu dans la capture de l'utilisateur connecté (lib/captures.js), avec sa
+ * photo (adresse signée 1 h) et le bouton « Retirer de mon Hangar ».
+ * Sinon : « Ajouter à ma collection » (Server Action addToCollection,
+ * app/hangar/actions.js), ou « Déjà dans ton Hangar » si l'avion y est.
  */
 
 import { Suspense } from 'react';
@@ -18,8 +21,13 @@ import { cacheLife } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import AircraftSheet from '@/components/AircraftSheet';
 import { PlaneIcon } from '@/components/icons';
+import Link from 'next/link';
+import RemoveCaptureButton from '@/components/RemoveCaptureButton';
+import AddToCollectionButton from '@/components/AddToCollectionButton';
 import { pointsForRarity } from '@/lib/points';
-import { findExampleCapture } from '@/lib/hangar-exemple';
+import { getCurrentUser } from '@/lib/auth';
+import { loginUrl } from '@/lib/redirection';
+import { getMyCapture, seenDateFr, signPhotoUrls } from '@/lib/captures';
 
 const FICHE_COLUMNS = [
   'id', 'name', 'manufacturer', 'category', 'description',
@@ -72,58 +80,132 @@ async function AircraftContent({ params, searchParams }) {
   const fiche = await getAircraft(id);
   if (!fiche) notFound();
 
-  // Ouverte depuis le Hangar (écran 09) : retour au Hangar et, si l'avion a
-  // été photographié, le panneau « Ma prise de vue »
+  // Ouverte depuis le Hangar (écran 09) : retour au Hangar et, si l'avion est
+  // dans le Hangar de l'utilisateur connecté, le panneau du bas. La fiche
+  // reste publique : sans session, elle s'affiche simplement sans panneau.
   if (depuis === 'hangar') {
-    const capture = findExampleCapture(id);
+    const user = await getCurrentUser();
+    const capture = user ? await getMyCapture(id) : null;
+
+    let panel = null;
+    if (capture?.status === 'seen') {
+      const urls = await signPhotoUrls([capture.photo_path]);
+      panel = <MyCapture capture={capture} photoUrl={urls.get(capture.photo_path) ?? null} fiche={fiche} />;
+    } else if (capture?.status === 'collection') {
+      panel = <InMyCollection fiche={fiche} />;
+    }
+
     return (
       <AircraftSheet fiche={fiche} backHref="/hangar">
-        {capture && <MyCapture capture={capture} rarity={fiche.rarity} />}
+        {panel}
       </AircraftSheet>
     );
   }
 
-  return <AircraftSheet fiche={fiche} backHref="/" />;
+  // Ouverte depuis ailleurs : « Ajouter à ma collection » (ou l'état actuel)
+  const user = await getCurrentUser();
+  const capture = user ? await getMyCapture(id) : null;
+
+  return (
+    <AircraftSheet fiche={fiche} backHref="/">
+      <CollectionPanel fiche={fiche} loggedIn={Boolean(user)} capture={capture} />
+    </AircraftSheet>
+  );
 }
 
-const dateFr = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+/**
+ * Bas de fiche publique : ajouter l'avion à sa collection (sans photo,
+ * 0 point). Déjà dans le Hangar → on le dit, avec un lien vers sa fiche
+ * « depuis le Hangar ». Visiteur non connecté → lien vers la connexion.
+ */
+function CollectionPanel({ fiche, loggedIn, capture }) {
+  const fichePath = `/avions/${encodeURIComponent(fiche.id)}`;
+
+  if (!loggedIn) {
+    return (
+      <Link href={loginUrl(fichePath)} className="flex min-h-11 items-center text-sm font-semibold text-brand-blue">
+        Connecte-toi pour l’ajouter à ta collection
+      </Link>
+    );
+  }
+
+  if (capture) {
+    return (
+      <div className="flex w-full items-center justify-between gap-3">
+        <p className="typo-item-title text-ink">
+          {capture.status === 'seen' ? 'Déjà dans ton Hangar · vu en vrai' : 'Déjà dans ta collection'}
+        </p>
+        <Link href={`${fichePath}?depuis=hangar`} className="flex min-h-11 shrink-0 items-center text-sm font-semibold text-brand-blue">
+          Voir
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="typo-body-sm w-full text-ink-muted">
+        Pas encore vu en vrai ? Ajoute-le à ta collection. Il rapportera {pointsForRarity(fiche.rarity)} pts
+        quand tu le prendras en photo.
+      </p>
+      <AddToCollectionButton aircraftId={fiche.id} />
+    </>
+  );
+}
 
 /**
- * Bas de fiche « depuis le Hangar » (écran 09) : la photo de l'utilisateur,
- * la date, le lieu et les points gagnés.
- * DONNÉES D'EXEMPLE (lib/hangar-exemple.js) tant que la table `captures` n'existe pas.
+ * Bas de fiche « depuis le Hangar » (écran 09), avion vu en vrai : la photo
+ * de l'utilisateur, la date du passage en « vu en vrai », le lieu et les
+ * points gagnés.
  */
-function MyCapture({ capture, rarity }) {
+function MyCapture({ capture, photoUrl, fiche }) {
+  const points = pointsForRarity(fiche.rarity);
   return (
     <>
       <div className="flex w-full items-center justify-between">
         <h2 className="typo-title-md text-ink">Ma prise de vue</h2>
         <span className="typo-data rounded-full bg-success-soft px-2.5 py-1.25 text-success">
-          +{pointsForRarity(rarity)} pts gagnés
+          +{points} pts gagnés
         </span>
       </div>
 
       <div className="flex w-full items-center gap-3.5">
-        {/* TODO : photo de l'utilisateur (captures.photo_path, Storage privé) */}
-        <div className="flex h-19 w-19 shrink-0 items-center justify-center rounded-md bg-linear-to-b from-brand-blue to-brand-blue-soft text-on-brand">
-          <PlaneIcon className="h-8.5 w-8.5" strokeWidth={1.5} />
+        {/* Photo de l'utilisateur (Storage privé, adresse signée valable 1 h) */}
+        <div className="flex h-19 w-19 shrink-0 items-center justify-center overflow-hidden rounded-md bg-linear-to-b from-brand-blue to-brand-blue-soft text-on-brand">
+          {photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- adresse signée Supabase, temporaire : next/image ne doit pas la mettre en cache
+            <img src={photoUrl} alt={`Ta photo du ${fiche.name}`} className="h-full w-full object-cover" />
+          ) : (
+            <PlaneIcon className="h-8.5 w-8.5" strokeWidth={1.5} />
+          )}
         </div>
         <div className="flex min-w-0 flex-col gap-0.75">
-          <p className="typo-item-title text-ink">Vu en vrai le {dateFr.format(new Date(capture.created_at))}</p>
-          <p className="typo-body-sm text-ink-muted">{capture.place}</p>
+          <p className="typo-item-title text-ink">Vu en vrai le {seenDateFr.format(new Date(capture.seen_at))}</p>
+          {capture.place && <p className="typo-body-sm text-ink-muted">{capture.place}</p>}
           <p className="typo-credit text-ink-muted">Photo privée · visible par toi seul</p>
         </div>
       </div>
 
-      {/* TODO : supprimer la capture quand la table `captures` existera */}
-      <button
-        type="button"
-        disabled
-        title="Bientôt disponible"
-        className="min-h-11 text-sm font-semibold text-ink-muted disabled:opacity-60"
-      >
-        Retirer de mon Hangar
-      </button>
+      <RemoveCaptureButton aircraftId={fiche.id} points={points} />
+    </>
+  );
+}
+
+/**
+ * Bas de fiche « depuis le Hangar », avion de la collection (sans photo) :
+ * rappel qu'il ne rapporte rien tant qu'il n'est pas vu en vrai.
+ */
+function InMyCollection({ fiche }) {
+  return (
+    <>
+      <div className="flex w-full items-center justify-between">
+        <h2 className="typo-title-md text-ink">Dans ma collection</h2>
+        <span className="typo-data text-ink-muted">0 pt</span>
+      </div>
+      <p className="typo-body-sm w-full text-ink-muted">
+        Prends-le en photo quand tu le croises pour gagner {pointsForRarity(fiche.rarity)} pts.
+      </p>
+      <RemoveCaptureButton aircraftId={fiche.id} points={0} />
     </>
   );
 }

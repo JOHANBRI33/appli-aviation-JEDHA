@@ -4,8 +4,8 @@
  * ⚠️  PAGE DE TEST — DÉVELOPPEMENT UNIQUEMENT
  * Cette page consomme notre quota Gemini. En production, elle renvoie 404
  * pour qu'aucun visiteur ne puisse l'atteindre une fois le site en ligne.
- * Supprimer ce guard quand la gestion du quota et l'authentification
- * utilisateur seront en place (semaine 3+).
+ * En développement aussi, il faut être connecté : /api/identifier renvoie
+ * 401 sans session (se connecter d'abord sur /connexion).
  */
 
 import { notFound } from 'next/navigation';

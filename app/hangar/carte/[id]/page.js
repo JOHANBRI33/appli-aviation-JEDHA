@@ -9,8 +9,9 @@
  * « Collection » (ou inconnu) renvoie la page « introuvable ».
  *
  * Le nom, les caractéristiques et la rareté viennent de la table `aircraft`.
- * La prise de vue et le numéro de la carte sont des DONNÉES D'EXEMPLE
- * (lib/hangar-exemple.js) tant que la table `captures` n'existe pas.
+ * La prise de vue (date seen_at, lieu) vient de la capture de l'utilisateur
+ * connecté (lib/captures.js). Le numéro de la carte suit l'ordre des passages
+ * en « vu en vrai » : le premier avion vu en vrai est la carte n° 1.
  */
 
 import { Suspense } from 'react';
@@ -20,7 +21,8 @@ import { cacheLife } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import CollectibleCard from '@/components/CollectibleCard';
 import { ChevronLeftIcon } from '@/components/icons';
-import { EXAMPLE_CAPTURES, findExampleCapture } from '@/lib/hangar-exemple';
+import { requireUser } from '@/lib/auth';
+import { getMyCaptures } from '@/lib/captures';
 import ShareCardButton from './ShareCardButton';
 
 const CARD_COLUMNS = [
@@ -74,14 +76,22 @@ export default function CardPage({ params }) {
 
 async function CardContent({ params }) {
   const { id } = await params;
-  const capture = findExampleCapture(id);
-  if (!capture) notFound();
+  // Page réservée aux utilisateurs connectés (vérifiée ici en plus du proxy)
+  await requireUser(`/hangar/carte/${encodeURIComponent(id)}`);
 
-  const [aircraft, total] = await Promise.all([getAircraft(id), getCatalogueSize()]);
+  const [captures, aircraft, total] = await Promise.all([getMyCaptures(), getAircraft(id), getCatalogueSize()]);
   if (!aircraft) notFound();
 
-  // Numéro de la carte : ordre d'arrivée dans le Hangar (la plus ancienne est la n° 1)
-  const number = EXAMPLE_CAPTURES.length - EXAMPLE_CAPTURES.indexOf(capture);
+  // Cartes de l'utilisateur = ses avions vus en vrai, du plus ancien au plus récent
+  const cards = captures
+    .filter(capture => capture.status === 'seen')
+    .sort((a, b) => a.seen_at.localeCompare(b.seen_at));
+
+  // Seul un avion vu en vrai a une carte (pas un avion de la collection)
+  const index = cards.findIndex(capture => capture.aircraft_id === id);
+  if (index === -1) notFound();
+  const capture = cards[index];
+  const number = index + 1;
 
   return (
     <>
@@ -90,10 +100,16 @@ async function CardContent({ params }) {
         <Link href="/hangar" aria-label="Retour au Hangar" className="-ml-2.5 flex h-11 w-11 items-center justify-center text-on-brand">
           <ChevronLeftIcon className="h-6 w-6" />
         </Link>
-        <p className="typo-data text-on-brand">Ma collection · {EXAMPLE_CAPTURES.length} cartes</p>
+        <p className="typo-data text-on-brand">Ma collection · {cards.length} carte{cards.length > 1 ? 's' : ''}</p>
       </div>
 
-      <CollectibleCard aircraft={aircraft} capture={capture} number={number} total={total} />
+      {/* Composant navigateur : on ne lui passe que la date et le lieu */}
+      <CollectibleCard
+        aircraft={aircraft}
+        capture={{ seen_at: capture.seen_at, place: capture.place }}
+        number={number}
+        total={total}
+      />
 
       {/* Une seule action principale : partager. La fiche reste accessible. */}
       <div className="mt-auto flex flex-col gap-3 pt-10">

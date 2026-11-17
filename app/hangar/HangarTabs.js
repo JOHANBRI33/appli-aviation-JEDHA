@@ -13,8 +13,9 @@
  * directement la fiche /avions/[id]?depuis=hangar (écran 09).
  *
  * Props :
- *   seen        {object[]}  avions photographiés (lignes de aircraft)
- *   collection  {object[]}  avions ajoutés depuis la recherche
+ *   seen        {object[]}  avions vus en vrai : { aircraft, photoUrl }
+ *                           (photoUrl : adresse signée de la photo, ou null)
+ *   collection  {object[]}  avions ajoutés depuis une fiche : { aircraft, photoUrl: null }
  */
 
 import { useState } from 'react';
@@ -74,10 +75,11 @@ export default function HangarTabs({ seen, collection }) {
         )}
 
         <ul className="grid grid-cols-2 gap-3">
-          {items.map(aircraft => (
+          {items.map(({ aircraft, photoUrl }) => (
             <li key={aircraft.id}>
               <HangarTile
                 aircraft={aircraft}
+                photoUrl={photoUrl}
                 mode={tab}
                 href={tab === 'seen' ? `/hangar/carte/${aircraft.id}` : `/avions/${aircraft.id}?depuis=hangar`}
               />

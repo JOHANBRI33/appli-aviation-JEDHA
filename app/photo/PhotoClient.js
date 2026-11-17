@@ -13,19 +13,56 @@
  *                    avec les 3 suggestions de Gemini
  *   4. 'error'   : message d'erreur et bouton pour réessayer
  *
- * TODO (tâche fiche avion) : quand app/avions/[id] existera, l'avion reconnu
- * ouvrira sa fiche (écran 05, avec « Ajouter à mon Hangar ») au lieu du
- * résumé affiché ici par AircraftResult.
+ *   5. 'resume-failed' : retour de la connexion sans résultat gardé
+ *                  (sessionStorage indisponible) → « Reprenez la photo »
+ *
+ * Sur l'écran du résultat, « Ajouter à mon Hangar » envoie la photo et crée
+ * la capture (lib/enregistrer-capture.js), puis affiche les points gagnés.
+ * Seul un avion qui a un identifiant du catalogue peut rejoindre le Hangar.
+ *
+ * Props :
+ *   resume  {boolean}  true au retour de /connexion (?reprise=1) : on
+ *                      réaffiche le résultat gardé (app/photo/reprise.js)
  */
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
 import SkyBackground from '@/components/SkyBackground';
 import RarityTag from '@/components/RarityTag';
+import RarityBadge from '@/components/RarityBadge';
+import { MapPinIcon } from '@/components/icons';
+import { pointsForRarity } from '@/lib/points';
+import { loginUrl } from '@/lib/redirection';
+import { newAttemptId, saveSeenCapture } from '@/lib/enregistrer-capture';
+import { savePending, takePending } from './reprise';
 
 // En dessous de ce seuil, on demande à l'utilisateur de choisir parmi les suggestions
 const CONFIDENCE_THRESHOLD = 0.7;
+
+// Délai maximum de l'analyse (Gemini peut réessayer côté serveur s'il est saturé)
+const ANALYSE_TIMEOUT_MS = 45_000;
+
+// Dernier lieu saisi, proposé pour la photo suivante (même meeting)
+const LAST_PLACE_KEY = 'flight-hunter:dernier-lieu';
+
+/** Dernier lieu saisi, ou '' (localStorage peut être bloqué : navigation privée…). */
+function readLastPlace() {
+  try {
+    return localStorage.getItem(LAST_PLACE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writeLastPlace(place) {
+  try {
+    if (place) localStorage.setItem(LAST_PLACE_KEY, place);
+  } catch {
+    // Pas grave : le champ sera simplement vide la prochaine fois
+  }
+}
 
 // Réponse de Gemini quand l'avion n'est pas dans le catalogue (voir lib/identification.js)
 const UNKNOWN_ID = 'inconnu';
@@ -144,9 +181,13 @@ const ChevronLeftIcon = (props) => (
 
 // ─── Écran principal ─────────────────────────────────────────────────────────
 
-export default function PhotoClient() {
-  const [step, setStep]         = useState('idle'); // 'idle' | 'loading' | 'result' | 'error'
+export default function PhotoClient({ resume = false }) {
+  // 'idle' | 'loading' | 'result' | 'error' | 'resuming' | 'resume-failed'
+  const [step, setStep]         = useState(resume ? 'resuming' : 'idle');
   const [preview, setPreview]   = useState(null);   // URL blob de la photo de l'utilisateur
+  const [photo, setPhoto]       = useState(null);   // photo réduite (JPEG), envoyée au Hangar
+  const [attemptId, setAttemptId] = useState(null); // nom de la photo dans Storage, fixé une fois par photo
+  const [initialPlace, setInitialPlace] = useState(''); // lieu saisi avant une reconnexion
   const [lastFile, setLastFile] = useState(null);   // pour le bouton « Réessayer »
   const [result, setResult]     = useState(null);   // réponse de /api/identifier
   const [chosenId, setChosenId] = useState(null);   // avion choisi parmi les suggestions
@@ -159,12 +200,38 @@ export default function PhotoClient() {
   // Permet d'annuler l'envoi en cours (bouton « Annuler » de l'analyse)
   const abortRef = useRef(null);
 
+  // Retour de /connexion : on réaffiche le résultat gardé, sans nouvelle analyse
+  useEffect(() => {
+    if (!resume) return;
+    let cancelled = false;
+    (async () => {
+      const pending = await takePending();
+      // L'adresse redevient /photo : un rechargement ne relance pas la reprise
+      window.history.replaceState(null, '', '/photo');
+      if (cancelled) return;
+      if (!pending) {
+        setStep('resume-failed');
+        return;
+      }
+      setPhoto(pending.photo);
+      setAttemptId(pending.attemptId ?? newAttemptId());
+      setPreview(URL.createObjectURL(pending.photo));
+      setResult(pending.result);
+      if (pending.chosenByUser) setChosenId(pending.aircraftId);
+      setInitialPlace(pending.place ?? '');
+      setStep('result');
+    })();
+    return () => { cancelled = true; };
+  }, [resume]);
+
   async function analyse(file) {
     setError(null);
     setResult(null);
     setChosenId(null);
     setShowSuggestions(false);
     setLastFile(file);
+    setPhoto(null);
+    setInitialPlace('');
 
     if (!photoType(file)) {
       setError('Ce format de photo n’est pas pris en charge. Essaie avec une photo en JPEG.');
@@ -195,39 +262,67 @@ export default function PhotoClient() {
     if (controller.signal.aborted) return; // annulé pendant la réduction
 
     // Aperçu à partir de la photo réduite, en JPEG : il s'affiche même
-    // quand le navigateur ne sait pas afficher l'original (HEIC)
+    // quand le navigateur ne sait pas afficher l'original (HEIC).
+    // La photo réduite reste en mémoire : « Réessayer » la renvoie sans
+    // repasser par l'appareil photo, et c'est elle qui ira dans le Hangar.
     setPreview(URL.createObjectURL(compressed));
+    setPhoto(compressed);
+    setAttemptId(newAttemptId());
 
-    // 2. Envoi au serveur
-    let response;
+    await identify(compressed, controller);
+  }
+
+  /** Envoie la photo réduite à /api/identifier, avec un délai maximum. */
+  async function identify(compressed, controller = new AbortController()) {
+    abortRef.current = controller;
+    setError(null);
+    setStep('loading');
+
+    // Délai dépassé (réseau faible) : on coupe l'envoi et on propose Réessayer
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, ANALYSE_TIMEOUT_MS);
+
     try {
-      const formData = new FormData();
-      formData.append('image', compressed, 'photo.jpg');
-      response = await fetch('/api/identifier', {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal,
-      });
-    } catch (err) {
-      if (err.name === 'AbortError') return; // l'utilisateur a annulé
-      setError('Impossible de joindre le serveur. Vérifie ta connexion et réessaie.');
-      setStep('error');
-      return;
+      let response;
+      try {
+        const formData = new FormData();
+        formData.append('image', compressed, 'photo.jpg');
+        response = await fetch('/api/identifier', {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal,
+        });
+      } catch (err) {
+        if (err.name === 'AbortError' && !timedOut) return; // l'utilisateur a annulé
+        setError(timedOut
+          ? 'L’analyse prend trop de temps : le réseau est sans doute faible. Réessaie.'
+          : 'Impossible de joindre le serveur. Vérifie ta connexion et réessaie.');
+        setStep('error');
+        return;
+      }
+
+      // Lecture de la réponse : une erreur peut arriver sous forme de page
+      // HTML (photo trop lourde refusée par l'hébergeur, panne…), pas en JSON
+      const data = await readJson(response);
+      if (controller.signal.aborted && !timedOut) return;
+
+      if (!response.ok || !data) {
+        setError(data?.error ?? `L’analyse a échoué (erreur ${response.status}). Réessaie dans un instant.`);
+        setStep('error');
+        return;
+      }
+
+      setResult(data);
+      setStep('result');
+    } finally {
+      clearTimeout(timer);
     }
+  }
 
-    // 3. Lecture de la réponse : une erreur peut arriver sous forme de page
-    //    HTML (photo trop lourde refusée par l'hébergeur, panne…), pas en JSON
-    const data = await readJson(response);
-    if (controller.signal.aborted) return;
-
-    if (!response.ok || !data) {
-      setError(data?.error ?? `L’analyse a échoué (erreur ${response.status}). Réessaie dans un instant.`);
-      setStep('error');
-      return;
-    }
-
-    setResult(data);
-    setStep('result');
+  /** « Réessayer » : renvoie la photo déjà réduite, sinon refait la réduction. */
+  function retry() {
+    if (photo) identify(photo);
+    else if (lastFile) analyse(lastFile);
   }
 
   function onFileChange(e) {
@@ -240,11 +335,20 @@ export default function PhotoClient() {
     abortRef.current?.abort();
     if (preview) URL.revokeObjectURL(preview);
     setPreview(null);
+    setPhoto(null);
+    setInitialPlace('');
     setResult(null);
     setChosenId(null);
     setShowSuggestions(false);
     setError(null);
     setStep('idle');
+  }
+
+  /** « Scanner un autre avion » après un ajout : rouvre directement l'appareil photo. */
+  function scanAgain() {
+    restart();
+    // Appelé dans le geste de l'utilisateur (clic) : le navigateur l'autorise
+    cameraInputRef.current?.click();
   }
 
   // Avion à afficher : celui choisi par l'utilisateur, ou celui de Gemini
@@ -286,10 +390,12 @@ export default function PhotoClient() {
 
       {step === 'loading' && <LoadingView preview={preview} onCancel={restart} />}
 
+      {step === 'resume-failed' && <ResumeFailedView onRestart={restart} />}
+
       {step === 'error' && (
         <ErrorView
           message={error}
-          onRetry={lastFile && photoType(lastFile) ? () => analyse(lastFile) : null}
+          onRetry={photo || (lastFile && photoType(lastFile)) ? retry : null}
           onRestart={restart}
         />
       )}
@@ -297,12 +403,17 @@ export default function PhotoClient() {
       {step === 'result' && result && (
         shownId ? (
           <AircraftResult
+            key={shownId}
             preview={preview}
+            photo={photo}
+            attemptId={attemptId}
+            initialPlace={initialPlace}
             result={result}
             aircraftId={shownId}
             chosenByUser={!!chosenId}
             onShowSuggestions={() => { setChosenId(null); setShowSuggestions(true); }}
             onRestart={restart}
+            onScanAgain={scanAgain}
           />
         ) : (
           <SuggestionsView
@@ -411,47 +522,233 @@ function LoadingView({ preview, onCancel }) {
 
 // ─── Étape 3a : avion reconnu (ou choisi par l'utilisateur) ──────────────────
 
-function AircraftResult({ preview, result, aircraftId, chosenByUser, onShowSuggestions, onRestart }) {
+function AircraftResult({
+  preview, photo, attemptId, initialPlace, result, aircraftId, chosenByUser,
+  onShowSuggestions, onRestart, onScanAgain,
+}) {
+  const router = useRouter();
+  // 'idle' | 'saving' | 'added' | 'already-seen'
+  const [saveStep, setSaveStep]   = useState('idle');
+  const [saveError, setSaveError] = useState(null);
+  // Lieu prérempli : celui saisi avant une reconnexion, sinon le dernier lieu
+  // utilisé (souvent le même meeting). Ce composant ne s'affiche qu'après
+  // une analyse, jamais au rendu serveur : localStorage est donc lisible ici.
+  const [place, setPlace]         = useState(() => initialPlace || readLastPlace());
+
   // La fiche vient de Supabase ; si elle manque, on affiche au moins le nom
   const fiche = result.fichesById?.[aircraftId];
   const name = fiche?.name ?? (aircraftId === result.aircraft_id ? result.aircraft_name : aircraftId);
 
+  // Seul un avion du catalogue peut entrer dans le Hangar. Une fiche venue de
+  // Wikidata sans ajout au catalogue a pour identifiant un numéro « Q… ».
+  const inCatalogue = Boolean(fiche) && !/^Q\d+$/.test(fiche.id);
+  const points = pointsForRarity(fiche?.rarity);
+
+  async function addToHangar() {
+    setSaveError(null);
+    setSaveStep('saving');
+
+    const saved = await saveSeenCapture({
+      aircraftId,
+      photo,
+      attemptId,
+      place,
+      // Confiance de Gemini seulement pour l'avion qu'il a lui-même reconnu
+      confidence: chosenByUser ? null : result.confidence,
+    });
+
+    if (saved.status === 'logged-out') {
+      // Session expirée : on garde le résultat le temps de se reconnecter.
+      // Si sessionStorage refuse, le retour affichera « Reprenez la photo ».
+      await savePending({ result, aircraftId, chosenByUser, place, photo, attemptId });
+      router.push(loginUrl('/photo?reprise=1'));
+      return;
+    }
+    if (saved.status === 'error') {
+      // La photo réduite reste en mémoire : le bouton devient « Réessayer »
+      setSaveError(saved.message);
+      setSaveStep('idle');
+      return;
+    }
+    writeLastPlace(place.trim());
+    setSaveStep(saved.status); // 'added' ou 'already-seen'
+  }
+
+  if (saveStep === 'added' || saveStep === 'already-seen') {
+    return (
+      <SavedView
+        aircraftId={aircraftId}
+        name={name}
+        rarity={fiche?.rarity}
+        points={saveStep === 'added' ? points : null}
+        onScanAgain={onScanAgain}
+      />
+    );
+  }
+
+  const canAdd = inCatalogue && photo && attemptId;
+
   return (
-    <div className="flex flex-1 flex-col gap-6 px-6 py-8">
-      <UserPhoto preview={preview} />
+    <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col gap-6 px-6 pt-8 pb-4">
+        <UserPhoto preview={preview} />
 
-      <div className="flex flex-col gap-3">
-        <p className="typo-data flex items-center gap-1.5 text-success">
-          <CheckIcon className="h-4 w-4" />
-          {chosenByUser
-            ? 'Choisi par toi'
-            : `Identifié · ${Math.round(result.confidence * 100)} %`}
-        </p>
+        <div className="flex flex-col gap-3">
+          <p className="typo-data flex items-center gap-1.5 text-success">
+            <CheckIcon className="h-4 w-4" />
+            {chosenByUser
+              ? 'Choisi par toi'
+              : `Identifié · ${Math.round(result.confidence * 100)} %`}
+          </p>
 
-        {fiche?.rarity && (
-          <div>
-            <RarityTag rarity={fiche.rarity} />
-          </div>
-        )}
-
-        <div>
-          <h1 className="typo-display-xl text-ink">{name}</h1>
-          {fiche?.manufacturer && (
-            <p className="typo-body text-ink-muted">{fiche.manufacturer}</p>
+          {fiche?.rarity && (
+            <div>
+              <RarityTag rarity={fiche.rarity} />
+            </div>
           )}
+
+          <div>
+            <h1 className="typo-display-xl text-ink">{name}</h1>
+            {fiche?.manufacturer && (
+              <p className="typo-body text-ink-muted">{fiche.manufacturer}</p>
+            )}
+          </div>
         </div>
 
+        {canAdd ? (
+          // Lieu facultatif, en texte libre (jamais de position GPS)
+          <label className="flex w-full flex-col gap-1.5">
+            <span className="typo-data text-ink-muted">Lieu (facultatif)</span>
+            <span className="flex h-13 items-center gap-2.5 rounded-md border border-line bg-surface-raised px-3.5 text-ink-muted">
+              <MapPinIcon className="h-4.5 w-4.5" />
+              <input
+                type="text"
+                value={place}
+                onChange={e => setPlace(e.target.value)}
+                maxLength={120}
+                enterKeyHint="done"
+                placeholder="Ex. Meeting de La Ferté-Alais"
+                className="typo-body h-full min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-muted"
+              />
+            </span>
+          </label>
+        ) : (
+          // Avion absent du catalogue : pas de capture possible (clé étrangère)
+          <p className="typo-body-sm rounded-md bg-brand-blue-soft px-3.5 py-3 text-ink">
+            Cet avion n’est pas encore dans notre catalogue : il ne peut pas rejoindre ton Hangar pour l’instant.
+          </p>
+        )}
+
         {fiche?.description && <p className="typo-body text-ink">{fiche.description}</p>}
+
+        <div className="flex flex-col items-center">
+          <button type="button" onClick={onShowSuggestions} className={TEXT_LINK}>
+            Ce n’est pas lui ? Voir les suggestions
+          </button>
+          {canAdd && (
+            <button type="button" onClick={onRestart} className={TEXT_LINK}>
+              Reprendre la photo
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="mt-auto flex flex-col items-center gap-3.5">
-        <button type="button" onClick={onRestart} className={PRIMARY_BUTTON}>
+      {/* Action principale collée en bas de l'écran, à portée de pouce,
+          même quand la description est longue */}
+      <div className="sticky bottom-0 flex flex-col gap-2.5 border-t border-line bg-surface px-6 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        {canAdd ? (
+          <>
+            {saveError && (
+              <p role="alert" className="typo-body-sm flex items-center gap-2 text-danger">
+                <AlertIcon className="h-4 w-4" />
+                {saveError}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={addToHangar}
+              disabled={saveStep === 'saving'}
+              className={`${PRIMARY_BUTTON} disabled:opacity-60`}
+            >
+              {saveStep === 'saving'
+                ? 'Ajout en cours…'
+                : saveError ? 'Réessayer' : 'Ajouter à mon Hangar'}
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={onRestart} className={PRIMARY_BUTTON}>
+            Scanner un autre avion
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Étape 3c : ajouté au Hangar (ou déjà dedans) ────────────────────────────
+
+/**
+ * points = nombre de points gagnés (« +50 pts », en orange récompense),
+ * ou null si l'avion était déjà vu en vrai : on garde la première photo et
+ * l'utilisateur ne gagne rien de plus (lien vers sa carte).
+ */
+function SavedView({ aircraftId, name, rarity, points, onScanAgain }) {
+  const added = points !== null;
+
+  return (
+    <div className="flex flex-1 flex-col px-6 pt-8 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center" aria-live="polite">
+        <RarityBadge rarity={rarity} width={96} />
+        {added ? (
+          <>
+            <p className="typo-display-reward text-reward">+{points}</p>
+            <h1 className="typo-title-md text-ink">
+              Ajouté à ton Hangar · <span className="text-reward-text">+{points} pts</span>
+            </h1>
+            <p className="typo-body text-ink-muted">Le {name} rejoint tes avions vus en vrai.</p>
+          </>
+        ) : (
+          <>
+            <h1 className="typo-title-md text-ink">Déjà dans ton Hangar</h1>
+            <p className="typo-body text-ink-muted">
+              Tu as déjà vu le {name} en vrai : on garde ta première photo, sans nouveaux points.
+            </p>
+            <Link href={`/hangar/carte/${encodeURIComponent(aircraftId)}`} className={TEXT_LINK}>
+              Voir sa carte
+            </Link>
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3.5">
+        {/* Rouvre directement l'appareil photo : enchaîner les avions du meeting */}
+        <button type="button" onClick={onScanAgain} className={PRIMARY_BUTTON}>
+          <CameraIcon />
           Scanner un autre avion
         </button>
-        <button type="button" onClick={onShowSuggestions} className={TEXT_LINK}>
-          Ce n’est pas lui ? Voir les suggestions
-        </button>
+        <Link href="/hangar" className={OUTLINE_BUTTON}>
+          Voir mon Hangar
+        </Link>
       </div>
+    </div>
+  );
+}
+
+// ─── Retour de la connexion sans résultat gardé ──────────────────────────────
+
+function ResumeFailedView({ onRestart }) {
+  return (
+    <div className="flex flex-1 flex-col px-6 py-8">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center" role="alert">
+        <CameraIcon className="h-10 w-10 text-brand-blue" />
+        <h1 className="typo-title-md text-ink">Reprenez la photo</h1>
+        <p className="typo-body text-ink-muted">
+          Ta session avait expiré et ta photo n’a pas pu être gardée pendant la connexion.
+        </p>
+      </div>
+      <button type="button" onClick={onRestart} className={PRIMARY_BUTTON}>
+        Reprendre la photo
+      </button>
     </div>
   );
 }

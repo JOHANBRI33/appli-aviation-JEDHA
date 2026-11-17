@@ -32,9 +32,11 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - `app/` : pages et routes
   - `app/page.js` : accueil
   - `app/labo/` : page de test de reconnaissance (dev uniquement)
-  - `app/avions/[id]/` : fiche d'un avion *(à créer)*
-  - `app/photo/` : prise de photo et résultat *(à créer)*
-  - `app/hangar/` : collection de l'utilisateur
+  - `app/avions/[id]/` : fiche d'un avion ; en bas, « Ajouter à ma collection », ou la prise de vue de l'utilisateur si on vient du Hangar (`?depuis=hangar`)
+  - `app/photo/` : prise de photo, résultat et « Ajouter à mon Hangar » (connexion obligatoire) ; `reprise.js` garde le résultat dans sessionStorage si la session expire avant l'ajout
+  - `app/hangar/` : Hangar de l'utilisateur (vrais avions vus et collection, score, badges) ; `actions.js` : Server Actions « Retirer de mon Hangar » et « Ajouter à ma collection »
+  - `app/connexion/`, `app/inscription/` : connexion et inscription (email, mot de passe, pseudo) ; `app/auth/actions.js` : Server Actions signUp, signIn, signOut ; `app/auth/confirm/` : lien de confirmation envoyé par email
+  - `app/choisir-pseudo/` : « Choisis ton pseudo » pour un compte connecté sans profil (créé avant la migration 003) ; `/hangar`, `/photo` et « Ajouter à ma collection » y renvoient (`requireProfile` dans `lib/auth.js`)
   - `app/calendrier/` : meetings et salons de la saison, filtrables par mois (écran 12)
   - `app/hangar/carte/[id]/` : carte à collectionner d'un avion vu en vrai (écrans 13 et 13b)
   - `app/classement/` : classement *(à créer)*
@@ -44,7 +46,13 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
   - `components/SkyBackground.js` : fond ciel avec nuages des écrans principaux
   - `components/CollectibleCard.js` : carte à collectionner (recto, verso, retournement), cadre en métal selon la rareté
 - `public/` : logo (`logo-flight-hunter.png`), icônes de l'appli (`icons/`), nuages du fond ciel (`sky-clouds.svg`)
-- `lib/supabase/` : clients Supabase (navigateur, serveur, et `admin.js` avec la clé service_role, serveur uniquement)
+- `proxy.js` (remplace `middleware.js` dans Next 16) : rafraîchit la session Supabase et renvoie vers `/connexion` les pages protégées (`/hangar`)
+- `lib/supabase/` : clients Supabase (navigateur, serveur, `proxy.js` pour la session, et `admin.js` avec la clé service_role, serveur uniquement)
+- `lib/auth.js` : `getCurrentUser`, `requireUser`, `getMyProfile` (pseudo lu dans `profiles`), serveur uniquement
+- `lib/redirection.js` : paramètre `?suivant=` de la connexion, limité aux chemins internes
+- `lib/captures.js` : captures de l'utilisateur connecté et adresses signées de ses photos (serveur)
+- `lib/enregistrer-capture.js` : envoi de la photo et création de la capture depuis le navigateur, avec délais maximum et nouvel essai sans doublon
+- `components/HangarTile.js`, `components/RemoveCaptureButton.js`, `components/AddToCollectionButton.js`, `components/AuthForm.js` : vignette du Hangar, boutons du Hangar, champs des formulaires de connexion
 - `lib/catalogue.js` : recherche d'un avion dans la table `aircraft` par ses alias, ajout automatique d'un avion trouvé sur Wikidata
 - `lib/identification.js` : appel à Gemini. `identifyAircraftFree` (identification libre, utilisée par l'appli) ; `identifyAircraft` + `loadCatalogue` (mode catalogue, gardé pour `npm run test:vision`)
 - `lib/wikidata.js` : fiche d'un avion depuis son nom (recherche Wikidata, données techniques, photo Commons, résumé Wikipédia, rareté), gardée en mémoire 24 h ; `parseAircraft` et `toAircraftRow` sont partagés avec le script d'import
@@ -55,6 +63,8 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 - `supabase/migrations/` : schéma de la base, versionné
   - `001_aircraft.sql` : table aircraft, RLS
   - `002_aircraft_details.sql` : données techniques en plus, sources, alias, `enwiki_title`, `verified`
+  - `003_users.sql` : `profiles`, `captures`, RLS, bucket `captures`, `username_available`, `get_leaderboard`
+  - `004_create_my_profile.sql` : `create_my_profile(new_username)`, profil d'un compte qui n'en a pas (écran « Choisis ton pseudo »)
 - `supabase/seed/` : données initiales
   - `aircraft.sql` : 330 appareils (200 avions, 130 hélicoptères) générés par `npm run import:catalogue` (à exécuter après la migration 002)
 - `scripts/test-vision/` : test de reconnaissance en batch (mode catalogue)
@@ -103,12 +113,36 @@ Priorité absolue : une boucle simple qui marche de bout en bout, plutôt que be
 
 RLS : lecture publique sur `visible = true` ; aucune écriture pour anon / authenticated. Seule la route serveur `/api/identifier` ajoute des avions, avec la clé service_role et `verified = false` (décision d'équipe du 16/11/2026).
 
-### Tables à créer
+### Tables `profiles` et `captures` ✅ créées (`supabase/migrations/003_users.sql`)
 
-- `profiles` : id (= auth), username, points
-- `captures` : id, user_id, aircraft_id, photo_path, confidence, created_at
+`profiles` : une ligne par compte, créée par un trigger à l'inscription (le pseudo vient de `options.data.username`).
 
-Les badges se déduisent de la rareté (`aircraft.rarity`) des avions vus en vrai : pas de table `badges`.
+| Colonne | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | = `auth.users.id`, suppression en cascade |
+| `username` | text | `^[A-Za-z0-9_-]{3,20}$`, unique sans tenir compte des majuscules ; seule information visible des autres |
+| `created_at` / `updated_at` | timestamptz | automatiques |
+
+`captures` : les avions du Hangar, une seule ligne par utilisateur et par avion (`unique (user_id, aircraft_id)`).
+
+| Colonne | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `user_id` | uuid | rempli par la base (`auth.uid()`), jamais envoyé par l'appli |
+| `aircraft_id` | text | avion du catalogue (clé étrangère, sans cascade : on masque un avion, on ne le supprime pas) |
+| `status` | enum | `seen` (vu en vrai : photo obligatoire, rapporte des points) / `collection` (ajouté depuis une fiche : sans photo, 0 point) |
+| `photo_path` | text | `<user_id>/<fichier>.jpg` dans le bucket privé `captures` |
+| `place` | text | lieu en texte libre, facultatif, 120 caractères max ; jamais de GPS |
+| `confidence` | numeric | confiance de Gemini (null si l'utilisateur a choisi parmi les suggestions) |
+| `seen_at` | timestamptz | date du passage en « vu en vrai », remplie par le trigger ; c'est la date de la carte |
+| `created_at` / `updated_at` | timestamptz | automatiques |
+
+- Rien ne redescend : `collection` peut passer à `seen`, jamais l'inverse. Une capture `seen` garde sa première photo (seul le lieu peut changer). Un avion déjà vu en vrai affiche « Déjà dans ton Hangar », sans points.
+- Les points ne sont jamais stockés : ils se calculent à partir des avions vus en vrai et du barème de `lib/points.js`, recopié dans `get_leaderboard()` (à garder identique).
+- Les badges se déduisent de la rareté (`aircraft.rarity`) des avions vus en vrai : pas de table `badges`.
+- Fonctions SQL : `username_available(candidate)` (pseudo libre ?, appelable sans compte), `get_leaderboard(max_rows)` (pseudo, nombre d'avions vus, score ; utilisateurs connectés seulement) et `create_my_profile(new_username)` (crée le profil de l'appelant seulement, s'il n'en a pas).
+- Droits par colonne : un `select('*')` sur `profiles` échoue, il faut nommer les colonnes (`id, username`).
+- Storage : bucket privé `captures` (5 Mo, JPEG / PNG / WebP), chaque utilisateur ne lit, n'envoie et ne supprime que dans son dossier `<user_id>/`. Pas de politique UPDATE : une photo n'est jamais remplacée (pas d'upsert). Photos affichées par des adresses signées valables 1 h.
 
 ## Conventions
 
@@ -145,11 +179,15 @@ La référence est la charte « Flight Hunter » et le Figma « Appli aviation �
   - `SUPABASE_SERVICE_ROLE_KEY` (serveur uniquement : ajout automatique d'avions au catalogue, à déclarer aussi sur Vercel)
   - `VISION_API_KEY` (serveur uniquement)
 - L'IA de vision n'est appelée que depuis `app/api/`, jamais depuis le navigateur.
+- Supabase Auth → Redirect URLs : uniquement des adresses exactes (`http://localhost:3000/auth/confirm`, `https://<app>.vercel.app/auth/confirm`). Jamais de joker du type `https://*-<équipe>.vercel.app/**` : n'importe qui peut créer un projet Vercel dont l'adresse se termine ainsi et recevoir les liens de connexion.
 - Chaque photo est réduite (environ 1024 px de côté) avant envoi.
 - Reconnaissance (décision d'équipe du 13/11/2026) : identification libre, sans catalogue ni Supabase. Gemini reçoit la photo seule et renvoie en JSON `{ indices, aircraft_name, category, confidence, suggestions }`, le nom étant celui de la page Wikipédia anglaise (« Boeing 747 »). La route cherche ensuite la fiche dans la table `aircraft` (colonne `aliases`, `lib/catalogue.js`), pour l'avion choisi et ses suggestions ; sinon sur Wikidata (`lib/wikidata.js`), et l'avion est alors ajouté au catalogue avec `verified = false` si la confiance est d'au moins 0,7. Si la confiance est faible, proposer les 3 suggestions au lieu d'une réponse.
 - L'avion reconnu est désigné par son identifiant du catalogue (`b747`), sinon par son numéro Wikidata (`Q179`, si l'ajout au catalogue n'a pas eu lieu), sinon par le nom donné par Gemini. La fiche renvoyée a les mêmes champs que la table `aircraft`, et sa rareté suit la même règle (`units_built`). Nombre d'exemplaires inconnu → rareté 3 (Or), décision d'équipe du 16/11/2026.
 - Wikidata bloque les appels trop nombreux : une seule fiche cherchée par photo (celle de l'avion reconnu), jamais de recherches en rafale.
 - Row Level Security activée sur toutes les tables Supabase : un utilisateur ne lit et n'écrit que ses propres captures. La table `aircraft` est en lecture publique (anon + authenticated).
+- La clé service_role n'est pas utilisée pour les données des utilisateurs : profils, captures et photos passent toujours par la session de l'utilisateur et la RLS. Chaque Server Action et route vérifie elle-même la session (`lib/auth.js`), sans compter sur `proxy.js`.
+- Connexion obligatoire pour analyser une photo : `/api/identifier` renvoie 401 sans session (quota Gemini).
+- Partage d'une carte : texte seul, sans lien (la carte est privée).
 - Photos des fiches : uniquement Wikimedia Commons, avec auteur et licence affichés sous chaque image. Jamais de photos Planespotters, JetPhotos ou Airliners.net.
 - `loadCatalogue()` dans `lib/identification.js` (utilisé seulement par `npm run test:vision`) lit d'abord Supabase (`id, name, manufacturer, recognition_hints`) ; si indisponible, bascule sur `scripts/test-vision/catalogue.json` avec un `console.warn`.
 
@@ -160,6 +198,14 @@ La référence est la charte « Flight Hunter » et le Figma « Appli aviation �
 - Ne pas toucher aux fichiers hors du périmètre de la tâche sans le signaler.
 - Pas de refonte globale ni de changement de stack sans décision d'équipe.
 - Messages de commit en français, au présent : « ajoute l'écran fiche avion ».
+
+## À faire avant lancement public
+
+- Suppression de compte avec ses photos (RGPD).
+
+## Améliorations futures
+
+- Anti-triche : pour le MVP, toute photo (appareil photo ou galerie) compte comme « vu en vrai ». Plus tard : vérifier la date de prise de vue (EXIF) ou n'accepter que l'appareil photo.
 
 ## Hors périmètre du MVP
 

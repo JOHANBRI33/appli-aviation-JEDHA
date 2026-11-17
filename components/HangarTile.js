@@ -9,13 +9,14 @@
  *   - « collection » : ajouté depuis la recherche → fond gris, bordure en
  *                      pointillés, badge estompé, « Collection · 0 pt »
  *
- * La zone photo montre l'avion dessiné, comme dans le Figma.
- * TODO : afficher la photo de l'utilisateur (captures.photo_path) en mode « seen ».
+ * La zone photo montre la photo de l'utilisateur en mode « seen » (adresse
+ * signée temporaire), sinon l'avion dessiné, comme dans le Figma.
  *
  * Props :
- *   aircraft  {object}  ligne de la table aircraft (id, name, manufacturer, rarity)
- *   mode      {string}  'seen' ou 'collection'
- *   href      {string}  lien vers la fiche de l'avion
+ *   aircraft  {object}       ligne de la table aircraft (id, name, manufacturer, rarity)
+ *   photoUrl  {string|null}  adresse signée de la photo de l'utilisateur (facultatif)
+ *   mode      {string}       'seen' ou 'collection'
+ *   href      {string}       lien vers la fiche de l'avion
  */
 
 import Link from 'next/link';
@@ -23,7 +24,7 @@ import RarityTag from '@/components/RarityTag';
 import RarityBadge from '@/components/RarityBadge';
 import { PlaneIcon } from '@/components/icons';
 
-export default function HangarTile({ aircraft, mode, href }) {
+export default function HangarTile({ aircraft, photoUrl = null, mode, href }) {
   const seen = mode === 'seen';
 
   return (
@@ -34,10 +35,15 @@ export default function HangarTile({ aircraft, mode, href }) {
     >
       {/* Zone photo, avec le badge de rareté dans le coin (estompé en collection) */}
       <div
-        className={`relative flex h-26 items-center justify-center text-on-brand
+        className={`relative flex h-26 items-center justify-center overflow-hidden text-on-brand
                     ${seen ? 'bg-linear-to-b from-brand-blue to-brand-blue-soft' : 'bg-linear-to-b from-line to-surface'}`}
       >
-        <PlaneIcon className="h-11.5 w-11.5" strokeWidth={1.5} />
+        {seen && photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- adresse signée Supabase, temporaire : next/image ne doit pas la mettre en cache
+          <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <PlaneIcon className="h-11.5 w-11.5" strokeWidth={1.5} />
+        )}
         <RarityBadge
           rarity={aircraft.rarity}
           width={68}
